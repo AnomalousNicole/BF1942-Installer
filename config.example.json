@@ -1,0 +1,17 @@
+{
+  "appId": "",
+  "gameDir": "game",
+  "appName": "Battlefield 1942 & Expansions",
+  "installerTitle": "BF1942 & Expansions Installer",
+  "createdBy": "",
+  "appPublisher": "BF1942 Community",
+  "outputBaseFilename": "BF1942_Expansions_Setup",
+  "defaultInstallDir": "{sd}\\EA Games\\Battlefield 1942",
+  "appendEAGamesFolder": true,
+  "serverShortcutName": "",
+  "serverAddress": "",
+  "generateSerial": true,
+  "registryStateKey": "SOFTWARE\\BF1942 Installer",
+  "compression": "lzma2/ultra64",
+  "exclude": []
+}

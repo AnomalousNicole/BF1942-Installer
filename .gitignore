@@ -1,0 +1,18 @@
+# Your settings (created from config.example.json by build.ps1)
+/config.json
+
+# Your copy of the game - never commit retail game files
+/game/
+
+# Downloads, staged components and generated files
+/build/
+
+# Built installers
+/output/
+
+# Optional files you supply yourself (see extras/README.md)
+/extras/**
+!/extras/README.md
+
+# Optional artwork you supply yourself (see branding/README.md)
+/branding/*.bmp

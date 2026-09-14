@@ -1,0 +1,14 @@
+* text=auto
+
+# Windows tooling expects CRLF
+*.iss   text eol=crlf
+*.ps1   text eol=crlf
+*.cs    text eol=crlf
+*.ini   text eol=crlf
+*.conf  text eol=crlf
+*.json  text eol=crlf
+
+*.dll   binary
+*.exe   binary
+*.bmp   binary
+*.rfa   binary
