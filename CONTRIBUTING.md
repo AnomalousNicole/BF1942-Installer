@@ -14,6 +14,8 @@ Open an issue and include:
 
 ## Updating a bundled component
 
+**Don't update DXVK.** It is locked to 2.7.1, the newest release that works with Battlefield 1942, and `build.ps1` rejects any other version.
+
 1. Edit its entry in `components.json`: `version`, the download `url`, `fileName` and `sha256`.
 2. Get the SHA-256 of the new file:
    ```powershell

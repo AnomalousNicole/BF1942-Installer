@@ -283,6 +283,14 @@ Write-Step 'Components'
 $manifest = Get-Content -LiteralPath (Join-Path $Root 'components.json') -Raw | ConvertFrom-Json
 New-Item -ItemType Directory -Force -Path $CacheDir, $DepsDir | Out-Null
 
+# DXVK 2.7.1 is the newest release that works with Battlefield 1942 - never build with another version
+$DxvkVersion = '2.7.1'
+$dxvk = @($manifest.components | Where-Object { $_.id -eq 'dxvk' })
+if ($dxvk.Count -ne 1 -or $dxvk[0].version.TrimStart('v') -ne $DxvkVersion -or
+    @($dxvk[0].downloads | Where-Object { $_.url -notlike "*/v$DxvkVersion/*" }).Count -gt 0) {
+    Stop-Build "components.json must use DXVK $DxvkVersion - newer DXVK releases do not work with Battlefield 1942."
+}
+
 $included = @{}
 foreach ($c in $manifest.components) {
     $dest = Join-Path $DepsDir $c.id

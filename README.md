@@ -160,7 +160,7 @@ The versions are pinned in [`components.json`](components.json). Each download i
 | Component | Version | Author | Obtained from |
 |---|---|---|---|
 | [BF42++](https://github.com/Casqade/bf42plusplus) | v2.0 | Casqade | GitHub release |
-| [DXVK](https://github.com/doitsujin/dxvk) | v2.7.1 | Philip Rebohle (doitsujin) | GitHub release |
+| [DXVK](https://github.com/doitsujin/dxvk) | v2.7.1 (locked) | Philip Rebohle (doitsujin) | GitHub release |
 | [dgVoodoo2](https://github.com/dege-diosg/dgVoodoo2) | v2.87.4 | Dege | GitHub release |
 | HRTF: [DSOAL](https://github.com/kcat/dsoal) + [OpenAL Soft](https://github.com/kcat/openal-soft) | OpenAL Soft 1.23.1 | Chris Robinson (kcat) | Included in `components/hrtf` (LGPL) |
 | DirectX End-User Runtime | June 2010 | Microsoft | download.microsoft.com |
@@ -238,6 +238,9 @@ Put `WizardImage100.bmp` (164×314) in `branding\` to replace the default Welcom
 ---
 
 ## Updating components
+
+> [!WARNING]
+> **DXVK is locked to 2.7.1**, the newest release that works with Battlefield 1942. `build.ps1` stops if `components.json` points to any other DXVK version.
 
 1. Edit the component's `version`, `url`, `fileName` and `sha256` in `components.json`.
 2. Run `.\build.ps1 -Quick` to check it, then do a full build and test an install and uninstall.

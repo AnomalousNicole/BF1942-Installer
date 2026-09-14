@@ -30,6 +30,7 @@
       "author": "Philip Rebohle (doitsujin)",
       "homepage": "https://github.com/doitsujin/dxvk",
       "required": true,
+      "note": "Locked to 2.7.1 - the newest DXVK release that works with Battlefield 1942. build.ps1 refuses any other version.",
       "downloads": [
         {
           "type": "tar.gz",
