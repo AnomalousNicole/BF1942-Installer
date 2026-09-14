@@ -256,7 +256,7 @@ Name: "{autodesktop}\{#ServerName}"; Filename: "{app}\BF1942.exe"; Parameters: "
 Filename: "{sys}\dism.exe"; Parameters: "/online /enable-feature /featurename:DirectPlay /all /norestart /quiet"; StatusMsg: "Enabling Windows DirectPlay (this can take a minute)..."; Components: required\directplay; Check: IsWin64 and DirectPlayNeeded; Flags: runhidden waituntilterminated 64bit
 Filename: "{sys}\dism.exe"; Parameters: "/online /enable-feature /featurename:DirectPlay /all /norestart /quiet"; StatusMsg: "Enabling Windows DirectPlay (this can take a minute)..."; Components: required\directplay; Check: (not IsWin64) and DirectPlayNeeded; Flags: runhidden waituntilterminated
 Filename: "{tmp}\dxredist\DXSETUP.exe"; Parameters: "/silent"; StatusMsg: "Installing DirectX End-User Runtime (June 2010)..."; Components: required\directx; Check: DirectXNeeded; Flags: waituntilterminated
-Filename: "{tmp}\VC_redist.x86.exe"; Parameters: "/install /quiet /norestart"; StatusMsg: "Installing Visual C++ Redistributable (x86)..."; Components: required\vcredist; Check: VCRedistNeeded; Flags: waituntilterminated
+Filename: "{tmp}\VC_redist.x86.exe"; Parameters: "{code:GetVCRedistParams}"; StatusMsg: "Installing Visual C++ Redistributable (x86)..."; Components: required\vcredist; Check: VCRedistNeeded; AfterInstall: VCRedistAfterInstall; Flags: waituntilterminated
 #if Has_compat
 Filename: "{sys}\sdbinst.exe"; Parameters: "-q ""{app}\BF1942.sdb"""; StatusMsg: "Installing the Battlefield 1942 compatibility profile..."; Components: compat; Check: IsWin64; Flags: runhidden waituntilterminated 64bit
 Filename: "{sys}\sdbinst.exe"; Parameters: "-q ""{app}\BF1942.sdb"""; StatusMsg: "Installing the Battlefield 1942 compatibility profile..."; Components: compat; Check: not IsWin64; Flags: runhidden waituntilterminated
@@ -307,7 +307,7 @@ var
   SerialIsNew: Boolean;
   RendererDetected, DxvkSupported: Boolean;
   RendererInfo: String;
-  VCChecked, VCNeeded: Boolean;
+  VCChecked, VCNeeded, VCRepair: Boolean;
   DPChecked, DPNeeded: Boolean;
   DXChecked, DXNeeded: Boolean;
   DNChecked, DNNeeded: Boolean;
@@ -448,6 +448,14 @@ end;
 
 { ---------- Visual C++ ---------- }
 
+{ The registry entry can outlive the DLLs (a "cleaner" tool, a broken uninstall or a failed
+  update), so the 32-bit runtime files must also be present before the install is skipped }
+function VCRuntimeFilesPresent: Boolean;
+begin
+  Result := FileExists(ExpandConstant('{syswow64}\msvcp140.dll')) and
+            FileExists(ExpandConstant('{syswow64}\vcruntime140.dll'));
+end;
+
 function VCRedistNeeded: Boolean;
 var
   Installed, Major, Minor, Bld: Cardinal;
@@ -456,15 +464,37 @@ begin
   if not VCChecked then begin
     VCChecked := True;
     VCNeeded := True;
+    VCRepair := False;
     if RegQueryDWordValue(HKLM32, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x86', 'Installed', Installed) and (Installed = 1) and
        RegQueryDWordValue(HKLM32, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x86', 'Major', Major) and
        RegQueryDWordValue(HKLM32, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x86', 'Minor', Minor) and
        RegQueryDWordValue(HKLM32, 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x86', 'Bld', Bld) and
-       StrToVersion('{#VCVer}', Required) then
+       StrToVersion('{#VCVer}', Required) then begin
       VCNeeded := ComparePackedVersion(PackVersionComponents(Major, Minor, Bld, 0), Required) < 0;
-    Log('Visual C++ x86 runtime install needed: ' + IntToStr(Ord(VCNeeded)));
+      { Registered as current but the DLLs are gone: /install would be a no-op, so repair instead }
+      if (not VCNeeded) and (not VCRuntimeFilesPresent) then begin
+        VCNeeded := True;
+        VCRepair := True;
+      end;
+    end;
+    Log('Visual C++ x86 runtime install needed: ' + IntToStr(Ord(VCNeeded)) + ', repair: ' + IntToStr(Ord(VCRepair)));
   end;
   Result := VCNeeded;
+end;
+
+function GetVCRedistParams(Param: String): String;
+begin
+  if VCRepair then Result := '/repair /quiet /norestart' else Result := '/install /quiet /norestart';
+end;
+
+procedure VCRedistAfterInstall;
+begin
+  if not VCRuntimeFilesPresent then begin
+    Log('Visual C++ x86 runtime files are still missing after running the redistributable');
+    SuppressibleMsgBox('The Visual C++ Redistributable (x86) could not restore MSVCP140.dll, so Battlefield 1942 will not start yet.' + #13#10#13#10 +
+      'To fix this, open Settings > Apps > Installed apps, find "Microsoft Visual C++ Redistributable (x86)", choose Modify and then Repair. ' +
+      'You can also reinstall it from https://aka.ms/vs/17/release/vc_redist.x86.exe', mbError, MB_OK, IDOK);
+  end;
 end;
 
 { ---------- DirectPlay ---------- }
@@ -810,7 +840,9 @@ begin
     Result := Result + Space + 'DirectX (June 2010): will be installed' + NewLine
   else
     Result := Result + Space + 'DirectX (June 2010): already installed - skipped' + NewLine;
-  if VCRedistNeeded then
+  if VCRedistNeeded and VCRepair then
+    Result := Result + Space + 'Visual C++ Redistributable (x86): registered but MSVCP140.dll is missing - will be repaired' + NewLine
+  else if VCRedistNeeded then
     Result := Result + Space + 'Visual C++ Redistributable (x86): will be installed' + NewLine
   else
     Result := Result + Space + 'Visual C++ Redistributable (x86): already installed - skipped' + NewLine;
