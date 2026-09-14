@@ -441,6 +441,6 @@ $setup = "$setup.exe"
 $item = Get-Item -LiteralPath $setup
 Write-Host ''
 Write-Good ("Built {0} in {1:N1} minutes" -f $item.Name, ((Get-Date) - $started).TotalMinutes)
-Write-Info ("Size:    {0:N0} bytes ({1:N2} GB)" -f $item.Length, ($item.Length / 1GB))
+Write-Info ("Size:    {0:N0} bytes ({1:N0} MB below the 2 GB single-file limit)" -f $item.Length, ((2147483648 - $item.Length) / 1MB))
 Write-Info ("SHA-256: {0}" -f (Get-Sha256 $setup))
 if ($Quick) { Write-Note 'This was a -Quick build without the game files - do not distribute it.' }
