@@ -168,6 +168,16 @@
           "sha256": "C375DFD80A967405CFEFF634912C1FCCC56261CE3D9209EA473F60A21184D1CC"
         }
       ]
+    },
+    {
+      "id": "bobsiren",
+      "name": "Battle of Britain - disable siren",
+      "version": "",
+      "author": "AnomalousNicole",
+      "homepage": "",
+      "required": false,
+      "note": "Stored in components/bobsiren - replaces the Battle of Britain map with a copy that has the air raid siren removed.",
+      "downloads": []
     }
   ],
   "extras": [

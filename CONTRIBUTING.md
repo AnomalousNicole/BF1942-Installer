@@ -24,7 +24,7 @@ Open an issue and include:
 3. Run `.\build.ps1 -Quick` to check the download and the script, then do a full build and test an install.
 4. Update the version tables in `README.md` and `THIRD-PARTY-NOTICES.md`.
 
-Only use **official** download locations, such as the project's GitHub releases or Microsoft's download servers. Never commit third-party binaries unless their license allows it. The DSOAL/OpenAL Soft files in `components/hrtf` are LGPL.
+Only use **official** download locations, such as the project's GitHub releases or Microsoft's download servers. Never commit third-party binaries unless their license allows it. The DSOAL/OpenAL Soft files in `components/hrtf` are LGPL. `components/bobsiren/Battle_of_Britain.rfa` is included with the permission of its author, AnomalousNicole.
 
 ## Adding a new component
 

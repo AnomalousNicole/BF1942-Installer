@@ -93,6 +93,9 @@ Name: "required\hrtf"; Description: "HRTF - DSOAL + OpenAL Soft (3D audio)"; Typ
 Name: "required\directx"; Description: "DirectX End-User Runtime (June 2010) (only if missing)"; Types: recommended custom; Flags: fixed
 Name: "required\vcredist"; Description: "Visual C++ Redistributable x86 {#VCVer} (only if missing)"; Types: recommended custom; Flags: fixed
 Name: "required\directplay"; Description: "Enable Windows DirectPlay feature (only if not enabled)"; Types: recommended custom; Flags: fixed
+#if Has_bobsiren
+Name: "bobsiren"; Description: "Battle of Britain - disable the air raid siren"; Types: custom
+#endif
 ; Borderless1942 and Battlefield Rich Presence are 64-bit only - hidden on 32-bit Windows
 #if Has_borderless1942
 Name: "borderless"; Description: "Borderless1942 {#Ver_borderless1942} (LANCommander) - borderless window launcher"; Types: custom; Check: IsWin64
@@ -176,6 +179,10 @@ Source: "{#Deps}\directx\*"; DestDir: "{tmp}\dxredist"; Components: required\dir
 Source: "{#Deps}\vcredist\VC_redist.x86.exe"; DestDir: "{tmp}"; Components: required\vcredist; Check: VCRedistNeeded; Flags: deleteafterinstall
 
 ; Optional
+#if Has_bobsiren
+; Replaces the base game's Battle of Britain map with a copy that has the air raid siren removed
+Source: "{#Deps}\bobsiren\Battle_of_Britain.rfa"; DestDir: "{app}\Mods\bf1942\Archives\bf1942\levels"; Components: bobsiren; Flags: ignoreversion
+#endif
 #if Has_borderless1942
 Source: "{#Deps}\borderless1942\Borderless1942.exe"; DestDir: "{app}"; Components: borderless; Flags: ignoreversion
 #endif
@@ -735,6 +742,10 @@ begin
     L('  Windows DirectPlay is enabled, as BF1942 needs it on modern Windows.') +
     L('') +
     H('OPTIONAL (choose Custom installation on the Select Components page)');
+#if Has_bobsiren
+  S := S + L('  Battle of Britain - disable siren - created by AnomalousNicole') +
+    L('    The Battle of Britain map without the air raid siren.') + L('');
+#endif
 #if Has_borderless1942
   S := S + L('  Borderless1942 {#Ver_borderless1942} - developed by LANCommander') +
     L('    {#Url_borderless1942}') + L('');

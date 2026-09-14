@@ -1,6 +1,6 @@
 # Third-party notices
 
-This repository contains **no game files** and, apart from the LGPL audio libraries below, **no third-party binaries**. `build.ps1` downloads every other component from its official source when you build, and checks its SHA-256.
+This repository contains **no unmodified game files** and, apart from the LGPL audio libraries below, **no third-party binaries**. The one modified game file, the Battle of Britain map without the air raid siren, is listed below. `build.ps1` downloads every other component from its official source when you build, and checks its SHA-256.
 
 > [!IMPORTANT]
 > **If you distribute an installer you built,** you are redistributing everything inside it. Check each project's terms first. Several projects publish no license file, so their authors keep all rights. Ask them before sharing their work widely.
@@ -26,7 +26,9 @@ This repository contains **no game files** and, apart from the LGPL audio librar
 | DSOAL (based on Wine DirectSound; version resource 5.3.1.904) | `components/hrtf/dsound_next.dll` | Chris Robinson (kcat), Wine project | LGPL-2.1 (`components/hrtf/DSOAL-LICENSE.txt`) | https://github.com/kcat/dsoal |
 | OpenAL Soft 1.23.1 | `components/hrtf/dsoal-aldrv.dll` | Chris Robinson (kcat) and contributors | LGPL-2.0-or-later (`components/hrtf/OpenAL-Soft-COPYING.txt`) | https://github.com/kcat/openal-soft/tree/1.23.1 |
 
-These libraries are unmodified builds. The installer also copies the license texts to `Licenses\` in the game folder. `alsoft.ini` is a configuration file written for this project.
+| Battle of Britain - disable siren | `components/bobsiren/Battle_of_Britain.rfa` | AnomalousNicole | Modified Battlefield 1942 map; the original map is © Electronic Arts / DICE | |
+
+The audio libraries are unmodified builds. The installer also copies their license texts to `Licenses\` in the game folder. `alsoft.ini` is a configuration file written for this project.
 
 ## Supplied by you (`extras/`)
 
