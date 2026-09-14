@@ -170,7 +170,7 @@ The versions are pinned in [`components.json`](components.json). Each download i
 
 | Id | Component | Version | Author |
 |---|---|---|---|
-| `bobsiren` | Battle of Britain - disable siren: the Battle of Britain map without the air raid siren. Included in `components/bobsiren` | | AnomalousNicole |
+| `bobsiren` | Battle of Britain - disable siren: the Battle of Britain map without the air raid siren. Included in `components/bobsiren` | | Nicole @ MoonGamers |
 | `borderless1942` | [Borderless1942](https://github.com/LANCommander/Borderless1942) | 1.3.0 | LANCommander |
 | `datafield42` | [DataField42](https://github.com/Ahrkylien/BF1942-DataField42) | v2.1.0 | Ahrkylien |
 | `richpresence` | [Battlefield Rich Presence](https://github.com/community-network/Battlefield-rich-presence) | v1.6.0 | Gametools Network |
@@ -307,7 +307,7 @@ This installer bundles the work of these developers, and all credit goes to them
 - **PunkBuster**: Even Balance, Inc.
 - **Compatibility Profile**: the PCGamingWiki community
 - **Font RFAs and Higher resolution UI**: the BF1942 community
-- **Battle of Britain - disable siren**: AnomalousNicole
+- **Battle of Britain - disable siren**: Nicole @ MoonGamers
 - **[Inno Setup](https://jrsoftware.org/isinfo.php)**: Jordan Russell and Martijn Laan
 
 The installer was created by **Nicole @ MoonGamers**.

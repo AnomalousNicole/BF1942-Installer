@@ -743,7 +743,7 @@ begin
     L('') +
     H('OPTIONAL (choose Custom installation on the Select Components page)');
 #if Has_bobsiren
-  S := S + L('  Battle of Britain - disable siren - created by AnomalousNicole') +
+  S := S + L('  Battle of Britain - disable siren - created by Nicole @ MoonGamers') +
     L('    The Battle of Britain map without the air raid siren.') + L('');
 #endif
 #if Has_borderless1942

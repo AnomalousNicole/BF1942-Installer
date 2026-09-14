@@ -173,7 +173,7 @@
       "id": "bobsiren",
       "name": "Battle of Britain - disable siren",
       "version": "",
-      "author": "AnomalousNicole",
+      "author": "Nicole @ MoonGamers",
       "homepage": "",
       "required": false,
       "note": "Stored in components/bobsiren - replaces the Battle of Britain map with a copy that has the air raid siren removed.",
