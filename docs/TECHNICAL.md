@@ -114,7 +114,7 @@ With `appendEAGamesFolder`, the chosen folder is normalised to `…\EA Games\Bat
 3. `VC_redist.x86.exe /install /quiet /norestart`: only if the installed x86 runtime is older than the bundled one. If the registry says it is current but `msvcp140.dll` or `vcruntime140.dll` is missing from `SysWOW64`, it runs with `/repair` instead. If the DLLs are still missing afterwards, the user is told how to repair it by hand.
 4. `sdbinst -q BF1942.sdb`: Compatibility Profile.
 5. DataField42 setup: `/SILENT /SUPPRESSMSGBOXES /NORESTART /SP- /DIR="{app}"`.
-6. .NET 8 Desktop Runtime: only if no `Microsoft.WindowsDesktop.App\8.0.*` folder exists.
+6. .NET 8 Desktop Runtime: only if no complete 8.0.x runtime is found. A version only counts when `Microsoft.WindowsDesktop.App.deps.json` and the matching `Microsoft.NETCore.App` files exist and a `host\fxr\*\hostfxr.dll` is present. If the bundled version is registered but incomplete, it runs with `/repair`. If the runtime is still incomplete afterwards, the user is told how to repair it by hand.
 7. `msiexec /i` Battlefield Rich Presence, `/qn`.
 8. `Punkbuster42.exe`, which is interactive. Setup then **waits for `pbsvc.exe` to exit**, because Punkbuster42 leaves its *PunkBuster Services* window open.
 

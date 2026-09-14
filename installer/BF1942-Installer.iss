@@ -15,6 +15,7 @@
 #include "..\build\generated.iss"
 
 #define VCVer GetVersionNumbersString(Deps + "\vcredist\VC_redist.x86.exe")
+#define DotNetVer Ver_dotnet8
 #define StateKeyParent ExtractFileDir(StateKey)
 #define HasFontPack (Has_font_original || Has_font_1x || Has_font_2x || Has_font_3x || Has_font_35x || Has_font_4x)
 
@@ -272,7 +273,7 @@ Filename: "{sys}\sdbinst.exe"; Parameters: "-q ""{app}\BF1942.sdb"""; StatusMsg:
 Filename: "{tmp}\{#File_datafield42}"; Parameters: "/SILENT /SUPPRESSMSGBOXES /NORESTART /SP- /DIR=""{app}"""; StatusMsg: "Installing DataField42..."; Components: datafield; Flags: waituntilterminated
 #endif
 #if Has_richpresence
-Filename: "{tmp}\{#File_dotnet8}"; Parameters: "/install /quiet /norestart"; StatusMsg: "Installing .NET 8 Desktop Runtime (needed by Battlefield Rich Presence)..."; Components: richpresence; Check: DotNetDesktop8Needed; Flags: waituntilterminated
+Filename: "{tmp}\{#File_dotnet8}"; Parameters: "{code:GetDotNetParams}"; StatusMsg: "Installing .NET 8 Desktop Runtime (needed by Battlefield Rich Presence)..."; Components: richpresence; Check: DotNetDesktop8Needed; AfterInstall: DotNetAfterInstall; Flags: waituntilterminated
 Filename: "{sys}\msiexec.exe"; Parameters: "/i ""{tmp}\{#File_richpresence}"" /qn /norestart"; StatusMsg: "Installing Battlefield Rich Presence..."; Components: richpresence; Flags: waituntilterminated
 #endif
 #if Has_punkbuster42
@@ -317,7 +318,7 @@ var
   VCChecked, VCNeeded, VCRepair: Boolean;
   DPChecked, DPNeeded: Boolean;
   DXChecked, DXNeeded: Boolean;
-  DNChecked, DNNeeded: Boolean;
+  DNChecked, DNNeeded, DNRepair: Boolean;
 
 function GetSystemMetrics(nIndex: Integer): Integer;
   external 'GetSystemMetrics@user32.dll stdcall';
@@ -553,26 +554,86 @@ end;
 
 { ---------- .NET 8 Desktop Runtime (x64) ---------- }
 
-{ Installed when any 8.0.x version folder exists for Microsoft.WindowsDesktop.App (x64) }
-function DotNetDesktop8Needed: Boolean;
+{ An uninstall or a "cleaner" tool can leave empty version folders behind, so a version only
+  counts when its files are there: the .NET host (hostfxr.dll) plus both shared frameworks }
+function DotNetHostPresent: Boolean;
+var
+  FR: TFindRec;
+  Dir: String;
+begin
+  Result := False;
+  Dir := ExpandConstant('{commonpf64}\dotnet\host\fxr\');
+  if FindFirst(Dir + '*', FR) then
+    try
+      repeat
+        if (FR.Attributes and FILE_ATTRIBUTE_DIRECTORY <> 0) and (FR.Name <> '.') and (FR.Name <> '..') and
+           FileExists(Dir + FR.Name + '\hostfxr.dll') then
+          Result := True;
+      until Result or (not FindNext(FR));
+    finally
+      FindClose(FR);
+    end;
+end;
+
+function DotNetDesktopVersionComplete(const Ver: String): Boolean;
+var
+  Shared: String;
+begin
+  Shared := ExpandConstant('{commonpf64}\dotnet\shared\');
+  Result := FileExists(Shared + 'Microsoft.WindowsDesktop.App\' + Ver + '\Microsoft.WindowsDesktop.App.deps.json') and
+            FileExists(Shared + 'Microsoft.NETCore.App\' + Ver + '\Microsoft.NETCore.App.deps.json');
+  if not Result then
+    Log('.NET Desktop Runtime ' + Ver + ' folder is incomplete');
+end;
+
+{ x64 only - call on 64-bit Windows }
+function DotNetDesktop8Present: Boolean;
 var
   FR: TFindRec;
 begin
+  Result := False;
+  if DotNetHostPresent and FindFirst(ExpandConstant('{commonpf64}\dotnet\shared\Microsoft.WindowsDesktop.App\8.0.*'), FR) then
+    try
+      repeat
+        if (FR.Attributes and FILE_ATTRIBUTE_DIRECTORY <> 0) and DotNetDesktopVersionComplete(FR.Name) then
+          Result := True;
+      until Result or (not FindNext(FR));
+    finally
+      FindClose(FR);
+    end;
+end;
+
+function DotNetDesktop8Needed: Boolean;
+begin
   if not DNChecked then begin
     DNChecked := True;
-    DNNeeded := IsWin64;
-    if IsWin64 and FindFirst(ExpandConstant('{commonpf64}\dotnet\shared\Microsoft.WindowsDesktop.App\8.0.*'), FR) then
-      try
-        repeat
-          if FR.Attributes and FILE_ATTRIBUTE_DIRECTORY <> 0 then
-            DNNeeded := False;
-        until (not DNNeeded) or (not FindNext(FR));
-      finally
-        FindClose(FR);
-      end;
-    Log('.NET 8 Desktop Runtime install needed: ' + IntToStr(Ord(DNNeeded)));
+    DNNeeded := False;
+    DNRepair := False;
+    if IsWin64 then begin
+      DNNeeded := not DotNetDesktop8Present;
+      { The bundled version is registered but its files are gone: /install would be a no-op, so repair instead }
+      if DNNeeded then
+        DNRepair := RegValueExists(HKLM32, 'SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App', '{#DotNetVer}') or
+                    RegValueExists(HKLM64, 'SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App', '{#DotNetVer}');
+    end;
+    Log('.NET 8 Desktop Runtime install needed: ' + IntToStr(Ord(DNNeeded)) + ', repair: ' + IntToStr(Ord(DNRepair)));
   end;
   Result := DNNeeded;
+end;
+
+function GetDotNetParams(Param: String): String;
+begin
+  if DNRepair then Result := '/repair /quiet /norestart' else Result := '/install /quiet /norestart';
+end;
+
+procedure DotNetAfterInstall;
+begin
+  if not DotNetDesktop8Present then begin
+    Log('.NET 8 Desktop Runtime is still incomplete after running its installer');
+    SuppressibleMsgBox('The .NET 8 Desktop Runtime (x64) could not be installed correctly, so Battlefield Rich Presence may not start.' + #13#10#13#10 +
+      'To fix this, open Settings > Apps > Installed apps, find "Microsoft Windows Desktop Runtime - 8.0 (x64)", choose Modify and then Repair. ' +
+      'You can also reinstall it from https://dotnet.microsoft.com/download/dotnet/8.0', mbError, MB_OK, IDOK);
+  end;
 end;
 
 { ---------- Misc helpers ---------- }
@@ -859,7 +920,9 @@ begin
     Result := Result + Space + 'Visual C++ Redistributable (x86): already installed - skipped' + NewLine;
 #if Has_richpresence
   if WizardIsComponentSelected('richpresence') then begin
-    if DotNetDesktop8Needed then
+    if DotNetDesktop8Needed and DNRepair then
+      Result := Result + Space + '.NET 8 Desktop Runtime (x64): registered but its files are missing - will be repaired' + NewLine
+    else if DotNetDesktop8Needed then
       Result := Result + Space + '.NET 8 Desktop Runtime (x64): will be installed' + NewLine
     else
       Result := Result + Space + '.NET 8 Desktop Runtime (x64): already installed - skipped' + NewLine;
