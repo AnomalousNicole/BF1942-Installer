@@ -47,6 +47,7 @@ For the people who run your `Setup.exe`:
 - DirectX June 2010
 - Visual C++ x86
 - .NET 8, only when Rich Presence is chosen
+- Visual C++ and .NET 8 are repaired if they're registered but their files are missing
 
 **Game setup**
 - **Serial:** a valid existing serial is kept. Otherwise a random 22-character one is generated. This can be turned off.
@@ -231,7 +232,7 @@ Put `WizardImage100.bmp` (164×314) in `branding\` to replace the default Welcom
 
 ## Distributing your installer
 
-- **Size:** the installer is a single `.exe` that must stay under **2 GB**. A full build is about 1.9 GB.
+- **Size:** the installer is a single `.exe` that must stay under **2 GB**. A full build with every extra is about 1.97 GB.
 - **SmartScreen:** unsigned installers show *"Windows protected your PC"*. Players click **More info → Run anyway**. Code signing removes this.
 - **Checksum:** publish the SHA-256 that `build.ps1` prints, so players can verify their download.
 - **Licenses:** you are redistributing the bundled components, so read [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) first.

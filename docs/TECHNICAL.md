@@ -69,6 +69,7 @@ Anything else means dgVoodoo2. The check's output is shown on the *Ready to Inst
 ### Files
 - **Game:** the game folder is copied to `{app}`, without `Tools\`. When font extras exist, `Mods\bf1942\Archives\Font.rfa` comes from the chosen *Font* component instead.
 - **Fixes:** BF42++ (`dsound.dll`, `bf42++BlackScreen.exe`, `bf42++.ini`), the chosen renderer, and HRTF (`dsound_next.dll`, `dsoal-aldrv.dll`, `alsoft.ini`) go next to `BF1942.exe`. The LGPL license texts go to `{app}\Licenses`.
+- **Battle of Britain - disable siren** (`bobsiren`, optional): replaces `Mods\bf1942\Archives\bf1942\levels\Battle_of_Britain.rfa` with the copy in `components\bobsiren`, which has the air raid siren removed.
 
 ### Registry (32-bit view: `HKLM\SOFTWARE\WOW6432Node\…` on 64-bit Windows)
 
