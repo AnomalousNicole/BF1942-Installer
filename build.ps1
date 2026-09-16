@@ -452,13 +452,31 @@ if (-not $Quick) {
 foreach ($f in Get-ChildItem -LiteralPath $sources -Recurse -File -Force -ErrorAction SilentlyContinue) { $sizes[$f.FullName] = $f.Length }
 $totalBytes = [math]::Max([double]1, [double]($sizes.Values | Measure-Object -Sum).Sum)
 
-$ProgressPreference = 'Continue'
-$activity = 'Compiling the installer'
+# The bar is redrawn in place on the line below the step header (Write-Progress would draw at the top of the window)
+$barLive = -not [Console]::IsOutputRedirected
+$barWidth = 30
+$barText = ''
+function Write-Bar([int]$Pct, [string]$Status) {
+    if (-not $script:barLive) { return }
+    $filled = [int]($script:barWidth * $Pct / 100)
+    $text = '    [{0}{1}] {2,3}% {3}' -f ('#' * $filled), ('.' * ($script:barWidth - $filled)), $Pct, $Status
+    $max = 119
+    try { $max = [Console]::WindowWidth - 1 } catch { }
+    if ($text.Length -gt $max) { $text = $text.Substring(0, $max) }
+    Write-Host ("`r" + $text.PadRight($script:barText.Length)) -NoNewline
+    $script:barText = $text
+}
+function Clear-Bar {
+    if (-not $script:barLive -or -not $script:barText) { return }
+    Write-Host ("`r" + (' ' * $script:barText.Length) + "`r") -NoNewline
+    $script:barText = ''
+}
 $doneBytes = 0
 $lastBytes = 0
 $lastDraw = [DateTime]::MinValue
+$lastPct = 0
 $log = New-Object System.Collections.Generic.List[string]
-Write-Progress -Activity $activity -Status 'Preparing the script...' -PercentComplete 0
+Write-Bar 0 'Preparing the script...'
 # ISCC writes errors to stderr - with 'Stop', Windows PowerShell would turn the first one into an exception
 $ErrorActionPreference = 'Continue'
 & $iscc @isccArgs 2>&1 | ForEach-Object {
@@ -470,21 +488,25 @@ $ErrorActionPreference = 'Continue'
         $lastBytes = $sizes[$file]
         if (-not $lastBytes) { $lastBytes = 0 }
         if (((Get-Date) - $lastDraw).TotalMilliseconds -ge 250) {
-            $pct = [math]::Min(99, [int](100 * $doneBytes / $totalBytes))
+            $lastPct = [math]::Min(99, [int](100 * $doneBytes / $totalBytes))
             $elapsed = ((Get-Date) - $started).ToString('mm\:ss')
-            Write-Progress -Activity $activity -Status "$pct% - $elapsed elapsed - $(Split-Path $file -Leaf)" -PercentComplete $pct
+            Write-Bar $lastPct "$elapsed - $(Split-Path $file -Leaf)"
             $lastDraw = Get-Date
         }
     } elseif ($line -match '^\s*Compressing Setup program executable') {
-        Write-Progress -Activity $activity -Status 'Finishing Setup.exe...' -PercentComplete 99
+        Write-Bar 99 'Finishing Setup.exe...'
     } elseif ($line -match '^\s*Warning:') {
+        # Print the warning on its own line, then redraw the bar below it
+        $keep = $barText
+        Clear-Bar
         Write-Note ($line.Trim() -replace '^Warning:\s*', '')
+        if ($keep) { Write-Bar $lastPct ($keep -replace '^.*?%\s*', '') }
     }
 }
 $exitCode = $LASTEXITCODE
 $ErrorActionPreference = 'Stop'
-Write-Progress -Activity $activity -Completed
-$ProgressPreference = 'SilentlyContinue'
+if ($exitCode -eq 0) { Write-Bar 100 'Done' }
+if ($barLive) { Write-Host '' }
 if ($exitCode -ne 0) {
     $log | Select-Object -Last 25 | ForEach-Object { Write-Host "    $_" }
     Stop-Build "Inno Setup failed (exit code $exitCode). See the messages above."
