@@ -181,7 +181,7 @@
     }
   ],
   "extras": [
-    { "id": "punkbuster42",  "name": "Punkbuster42 (Even Balance)",            "path": "Punkbuster42\\Punkbuster42.exe", "sha256": "09A51EBFED96717266CDAEA7A42B1E7315AE3A5C59ECF8357E46C7D480037123" },
+    { "id": "punkbuster42",  "name": "Punkbuster42 (community installer)",    "path": "Punkbuster42\\Punkbuster42.exe", "sha256": "09A51EBFED96717266CDAEA7A42B1E7315AE3A5C59ECF8357E46C7D480037123" },
     { "id": "compat",        "name": "Battlefield 1942 Compatibility Profile", "path": "CompatProfile\\BF1942.sdb",      "sha256": "086FFB75C54DFC4F7079EA25A6E1EFE09713550C294483D4889B69C34351DE65" },
     { "id": "hiresui",       "name": "Higher resolution UI 0.1",               "path": "HiResUI\\menu.rfa",              "sha256": "F295BB588F11811F419FA532033B60191B2CC30C06D14F833CA88693B20378DA" },
     { "id": "font_original", "name": "Font: BF1942 original",                  "path": "Fonts\\Original\\Font.rfa",      "sha256": "D5BF9331E57F17A10235DE013B6F3A7C687C6706093D1E94B9487A3AAF629C17" },

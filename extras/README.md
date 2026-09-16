@@ -6,7 +6,7 @@ Optional components that are **not downloaded automatically**, because they have
 
 | Component | Put the file here | Tested SHA-256 |
 |---|---|---|
-| Punkbuster42 (Even Balance) | `extras\Punkbuster42\Punkbuster42.exe` | `09A51EBFED96717266CDAEA7A42B1E7315AE3A5C59ECF8357E46C7D480037123` |
+| Punkbuster42 (community-built PunkBuster installer) | `extras\Punkbuster42\Punkbuster42.exe` | `09A51EBFED96717266CDAEA7A42B1E7315AE3A5C59ECF8357E46C7D480037123` |
 | Battlefield 1942 Compatibility Profile ([PCGamingWiki](https://community.pcgamingwiki.com/files/file/1004-battlefield-1942-compatibility-profile/)) | `extras\CompatProfile\BF1942.sdb` | `086FFB75C54DFC4F7079EA25A6E1EFE09713550C294483D4889B69C34351DE65` |
 | Higher resolution UI 0.1 | `extras\HiResUI\menu.rfa` | `F295BB588F11811F419FA532033B60191B2CC30C06D14F833CA88693B20378DA` |
 | Font: BF1942 original (800×600 / 1024×768) | `extras\Fonts\Original\Font.rfa` | `D5BF9331E57F17A10235DE013B6F3A7C687C6706093D1E94B9487A3AAF629C17` |

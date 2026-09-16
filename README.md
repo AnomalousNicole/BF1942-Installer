@@ -194,7 +194,7 @@ These are files written for this project. Edit them to change the defaults.
 
 Some community files have no official download, so they are included in `extras\` and added to your installer. Delete a file, or `exclude` its id in `config.json`, to leave it out. See [extras/README.md](extras/README.md) for the exact paths and tested SHA-256 values.
 
-- **Punkbuster42** (Even Balance)
+- **Punkbuster42** (community-built installer for PunkBuster)
 - **Battlefield 1942 Compatibility Profile** ([PCGamingWiki](https://community.pcgamingwiki.com/files/file/1004-battlefield-1942-compatibility-profile/))
 - **Higher resolution UI 0.1**
 - **Font RFAs:** original, 1x, 2x, 3x, 3.5x and 4x
@@ -305,7 +305,7 @@ This installer bundles the work of these developers, and all credit goes to them
 - **Borderless1942**: [LANCommander](https://github.com/LANCommander/Borderless1942)
 - **DataField42**: [Ahrkylien](https://github.com/Ahrkylien/BF1942-DataField42)
 - **Battlefield Rich Presence**: [Gametools Network](https://github.com/community-network/Battlefield-rich-presence)
-- **PunkBuster**: Even Balance, Inc.
+- **Punkbuster42**: the BF1942 community (PunkBuster itself: Even Balance, Inc.)
 - **Compatibility Profile**: the PCGamingWiki community
 - **Font RFAs and Higher resolution UI**: the BF1942 community
 - **Battle of Britain - disable siren**: Nicole @ MoonGamers

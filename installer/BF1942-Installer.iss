@@ -108,7 +108,7 @@ Name: "datafield"; Description: "DataField42 {#Ver_datafield42} (Ahrkylien) - au
 Name: "richpresence"; Description: "Battlefield Rich Presence {#Ver_richpresence} (Gametools Network) - show your BF1942 game in Discord"; Types: custom; Check: IsWin64
 #endif
 #if Has_punkbuster42
-Name: "punkbuster"; Description: "Punkbuster42 (Even Balance) - PunkBuster anti-cheat for online play"; Types: custom
+Name: "punkbuster"; Description: "Punkbuster42 - community installer for PunkBuster anti-cheat (online play)"; Types: custom
 #endif
 #if Has_compat
 Name: "compat"; Description: "Battlefield 1942 Compatibility Profile (only if you get crashes)"; Types: custom
@@ -821,7 +821,7 @@ begin
     L('    Shows the Battlefield game and server you are playing in your Discord status.') + L('');
 #endif
 #if Has_punkbuster42
-  S := S + L('  Punkbuster42 - PunkBuster anti-cheat (Even Balance)') + L('');
+  S := S + L('  Punkbuster42 - PunkBuster installer (BF1942 community; PunkBuster by Even Balance)') + L('');
 #endif
 #if Has_compat
   S := S + L('  Battlefield 1942 Compatibility Profile - PCGamingWiki community') +

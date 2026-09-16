@@ -36,7 +36,7 @@ These are included in the repository, because they have no official download. Se
 
 | Component | Author |
 |---|---|
-| Punkbuster42 / PunkBuster | Even Balance, Inc. (proprietary) |
+| Punkbuster42 (community-built installer) | BF1942 community; the PunkBuster software it installs is by Even Balance, Inc. (proprietary) |
 | Battlefield 1942 Compatibility Profile | PCGamingWiki community: https://community.pcgamingwiki.com/files/file/1004-battlefield-1942-compatibility-profile/ |
 | Font RFAs, Higher resolution UI 0.1 | BF1942 community |
 
