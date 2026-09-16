@@ -450,7 +450,7 @@ if (-not $Quick) {
     $sources += @(Get-ChildItem -LiteralPath $GameDir -Force | Where-Object { $_.Name -ne 'Tools' } | ForEach-Object { $_.FullName })
 }
 foreach ($f in Get-ChildItem -LiteralPath $sources -Recurse -File -Force -ErrorAction SilentlyContinue) { $sizes[$f.FullName] = $f.Length }
-$totalBytes = [math]::Max(1, ($sizes.Values | Measure-Object -Sum).Sum)
+$totalBytes = [math]::Max([double]1, [double]($sizes.Values | Measure-Object -Sum).Sum)
 
 $ProgressPreference = 'Continue'
 $activity = 'Compiling the installer'
