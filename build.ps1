@@ -437,12 +437,58 @@ if ($DownloadOnly) {
 # 7. Compile
 # ---------------------------------------------------------------------------------------------
 Write-Step 'Compiling the installer (this takes a few minutes for a full build)'
-$isccArgs = @('/Q')
+$isccArgs = @()
 if ($Quick) { $isccArgs += '/DQUICK' }
 $isccArgs += (Join-Path $Root 'installer\BF1942-Installer.iss')
 $started = Get-Date
-& $iscc @isccArgs
-if ($LASTEXITCODE -ne 0) { Stop-Build "Inno Setup failed (exit code $LASTEXITCODE). See the messages above." }
+
+# Progress is measured in bytes: ISCC prints "Compressing: <file>" as it starts each file, so every
+# file listed before the current one is done. The total is the size of everything the script can pack.
+$sizes = @{}
+$sources = @($DepsDir) + @($extrasFound.Values | ForEach-Object { Join-Path $Extras $_.path })
+if (-not $Quick) {
+    $sources += @(Get-ChildItem -LiteralPath $GameDir -Force | Where-Object { $_.Name -ne 'Tools' } | ForEach-Object { $_.FullName })
+}
+foreach ($f in Get-ChildItem -LiteralPath $sources -Recurse -File -Force -ErrorAction SilentlyContinue) { $sizes[$f.FullName] = $f.Length }
+$totalBytes = [math]::Max(1, ($sizes.Values | Measure-Object -Sum).Sum)
+
+$ProgressPreference = 'Continue'
+$activity = 'Compiling the installer'
+$doneBytes = 0
+$lastBytes = 0
+$lastDraw = [DateTime]::MinValue
+$log = New-Object System.Collections.Generic.List[string]
+Write-Progress -Activity $activity -Status 'Preparing the script...' -PercentComplete 0
+# ISCC writes errors to stderr - with 'Stop', Windows PowerShell would turn the first one into an exception
+$ErrorActionPreference = 'Continue'
+& $iscc @isccArgs 2>&1 | ForEach-Object {
+    $line = "$_"
+    $log.Add($line)
+    if ($line -match '^\s*Compressing: (.+?)(\s{3}\(.*\))?$') {
+        $doneBytes += $lastBytes
+        $file = $Matches[1]
+        $lastBytes = $sizes[$file]
+        if (-not $lastBytes) { $lastBytes = 0 }
+        if (((Get-Date) - $lastDraw).TotalMilliseconds -ge 250) {
+            $pct = [math]::Min(99, [int](100 * $doneBytes / $totalBytes))
+            $elapsed = ((Get-Date) - $started).ToString('mm\:ss')
+            Write-Progress -Activity $activity -Status "$pct% - $elapsed elapsed - $(Split-Path $file -Leaf)" -PercentComplete $pct
+            $lastDraw = Get-Date
+        }
+    } elseif ($line -match '^\s*Compressing Setup program executable') {
+        Write-Progress -Activity $activity -Status 'Finishing Setup.exe...' -PercentComplete 99
+    } elseif ($line -match '^\s*Warning:') {
+        Write-Note ($line.Trim() -replace '^Warning:\s*', '')
+    }
+}
+$exitCode = $LASTEXITCODE
+$ErrorActionPreference = 'Stop'
+Write-Progress -Activity $activity -Completed
+$ProgressPreference = 'SilentlyContinue'
+if ($exitCode -ne 0) {
+    $log | Select-Object -Last 25 | ForEach-Object { Write-Host "    $_" }
+    Stop-Build "Inno Setup failed (exit code $exitCode). See the messages above."
+}
 
 $setup = Join-Path $outputDir ((Get-Setting 'outputBaseFilename' 'BF1942_Expansions_Setup') -replace '[\\/:*?"<>|]', '_')
 $setup = "$setup.exe"
