@@ -1,8 +1,8 @@
 # extras/
 
-Optional components that are **not downloaded automatically**. They have no official download link, or their license doesn't allow redistribution from this repository.
+Optional components that are **not downloaded automatically**, because they have no official download link. They are included in this folder.
 
-Put any of these files here and `build.ps1` adds them to your installer. Anything missing is left out of the installer. The contents of this folder are git-ignored.
+`build.ps1` adds every file it finds here to your installer. If you delete a file, that component is left out of the installer.
 
 | Component | Put the file here | Tested SHA-256 |
 |---|---|---|

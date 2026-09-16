@@ -24,16 +24,16 @@ Open an issue and include:
 3. Run `.\build.ps1 -Quick` to check the download and the script, then do a full build and test an install.
 4. Update the version tables in `README.md` and `THIRD-PARTY-NOTICES.md`.
 
-Only use **official** download locations, such as the project's GitHub releases or Microsoft's download servers. Never commit third-party binaries unless their license allows it. The DSOAL/OpenAL Soft files in `components/hrtf` are LGPL. `components/bobsiren/Battle_of_Britain.rfa` is included with the permission of its author, Nicole @ MoonGamers.
+Only use **official** download locations, such as the project's GitHub releases or Microsoft's download servers. Never commit third-party binaries unless their license allows it. The DSOAL/OpenAL Soft files in `components/hrtf` are LGPL. The files in `extras/` have no official download and are included on purpose. `components/bobsiren/Battle_of_Britain.rfa` is included with the permission of its author, Nicole @ MoonGamers.
 
 ## Adding a new component
 
-1. Add an entry to `components.json`, or to `extras` for files people must supply themselves.
+1. Add an entry to `components.json`, or to `extras` for files with no official download (and commit the file to `extras/`).
 2. In `installer/BF1942-Installer.iss`, wrap every line that uses the component in `#if Has_<id>` … `#endif`. That covers `[Components]`, `[Files]`, `[Run]`, `[Registry]`, and the credits page in `InitializeWizard`.
 3. If the component has its own uninstaller, remove it in `CurUninstallStepChanged`.
 
 ## Pull requests
 
 - Keep each pull request focused on one change.
-- Never commit game files, `config.json`, `build/`, `output/` or anything in `extras/`.
+- Never commit game files, `config.json`, `build/` or `output/`.
 - Test a full install **and** an uninstall on a clean Windows 10 or 11 PC or VM before submitting changes to the `[Code]` section.

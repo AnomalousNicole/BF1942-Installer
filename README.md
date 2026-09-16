@@ -98,7 +98,7 @@ For the people who run your `Setup.exe`:
    cd BF1942-Installer
    ```
 3. **Point it at your game.** Either copy the game folder to `game\` inside the repository, or pass `-GameDir` in step 5.
-4. *(Optional)* Add extras such as fonts or Punkbuster42 to [`extras\`](extras/README.md), and artwork to [`branding\`](branding/README.md).
+4. *(Optional)* Add artwork to [`branding\`](branding/README.md). The optional extras in [`extras\`](extras/README.md) are already included.
 5. **Build:**
    ```powershell
    .\build.ps1 -GameDir "C:\EA Games\Battlefield 1942"
@@ -192,7 +192,7 @@ These are files written for this project. Edit them to change the defaults.
 
 ## Optional extras
 
-Some community files have no official download or can't be redistributed from this repository. Put any of them in `extras\` and they are added to your installer. Anything missing is simply left out. See [extras/README.md](extras/README.md) for the exact paths and tested SHA-256 values.
+Some community files have no official download, so they are included in `extras\` and added to your installer. Delete a file, or `exclude` its id in `config.json`, to leave it out. See [extras/README.md](extras/README.md) for the exact paths and tested SHA-256 values.
 
 - **Punkbuster42** (Even Balance)
 - **Battlefield 1942 Compatibility Profile** ([PCGamingWiki](https://community.pcgamingwiki.com/files/file/1004-battlefield-1942-compatibility-profile/))
@@ -287,7 +287,7 @@ BF1942-Installer/
 │   ├── BF1942-Installer.iss  # Inno Setup script
 │   └── VulkanCheck.cs        # DXVK capability check (compiled by build.ps1)
 ├── components/               # Config files (+ LGPL audio libraries) copied into the install
-├── extras/                   # Your optional files (git-ignored)
+├── extras/                   # Optional files with no official download
 ├── branding/                 # Your optional artwork (git-ignored)
 └── docs/TECHNICAL.md
 ```

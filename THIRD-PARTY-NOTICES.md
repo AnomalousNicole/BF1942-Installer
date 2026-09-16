@@ -1,6 +1,6 @@
 # Third-party notices
 
-This repository contains **no unmodified game files** and, apart from the LGPL audio libraries below, **no third-party binaries**. The one modified game file, the Battle of Britain map without the air raid siren, is listed below. `build.ps1` downloads every other component from its official source when you build, and checks its SHA-256.
+This repository contains **no unmodified game files** The third-party binaries it includes are the LGPL audio libraries and the optional extras listed below. The one modified game file, the Battle of Britain map without the air raid siren, is also listed below. `build.ps1` downloads every other component from its official source when you build, and checks its SHA-256.
 
 > [!IMPORTANT]
 > **If you distribute an installer you built,** you are redistributing everything inside it. Check each project's terms first. Several projects publish no license file, so their authors keep all rights. Ask them before sharing their work widely.
@@ -30,9 +30,9 @@ This repository contains **no unmodified game files** and, apart from the LGPL a
 
 The audio libraries are unmodified builds. The installer also copies their license texts to `Licenses\` in the game folder. `alsoft.ini` is a configuration file written for this project.
 
-## Supplied by you (`extras/`)
+## Optional extras (`extras/`)
 
-These are not in the repository and are not downloaded. See [extras/README.md](extras/README.md).
+These are included in the repository, because they have no official download. See [extras/README.md](extras/README.md).
 
 | Component | Author |
 |---|---|

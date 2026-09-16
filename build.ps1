@@ -341,7 +341,7 @@ foreach ($c in $included.Values) {
 }
 
 # ---------------------------------------------------------------------------------------------
-# 4. Extras (optional files you supply yourself)
+# 4. Extras (optional files with no official download, kept in extras)
 # ---------------------------------------------------------------------------------------------
 Write-Step 'Extras (optional, from the extras\ folder)'
 $extrasFound = @{}
