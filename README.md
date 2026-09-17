@@ -1,8 +1,8 @@
 # BF1942-Installer
 
-Build your own single-file Windows installer for **Battlefield 1942**, **The Road to Rome** and **Secret Weapons of WWII**. It bundles the best community fixes and sets the game up to run on Windows 10 and 11.
+Build your own Windows installer for **Battlefield 1942**, **The Road to Rome** and **Secret Weapons of WWII**. It bundles the best community fixes and sets the game up to run on Windows 10 and 11.
 
-You bring the game files. One command downloads every fix from its official source, checks it, and produces a `Setup.exe` you can hand to players.
+You bring the game files. One command downloads every fix from its official source, checks it, and produces a `Setup.exe` you can hand to players. It is a single file unless the build is too big for one; see [Installers larger than 2 GB](#installers-larger-than-2-gb).
 
 ```powershell
 git clone https://github.com/AnomalousNicole/BF1942-Installer.git
@@ -25,6 +25,7 @@ cd BF1942-Installer
 - [Optional extras](#optional-extras)
 - [Branding](#branding)
 - [build.ps1 options](#buildps1-options)
+- [Installers larger than 2 GB](#installers-larger-than-2-gb)
 - [Antivirus and build.ps1](#antivirus-and-buildps1)
 - [Distributing your installer](#distributing-your-installer)
 - [Updating components](#updating-components)
@@ -105,7 +106,7 @@ For the people who run your `Setup.exe`:
    .\build.ps1 -GameDir "C:\EA Games\Battlefield 1942"
    ```
    The first run creates `config.json` with a unique AppId for your installer. Edit it if you want your own title, server shortcut and so on, then run the build again.
-6. **Get your installer** from `output\BF1942_Expansions_Setup.exe`. The build prints its size and SHA-256.
+6. **Get your installer** from `output\BF1942_Expansions_Setup.exe`. The build prints its size and SHA-256. If the build is too big for one file, `output\` also contains `.bin` files; see [Installers larger than 2 GB](#installers-larger-than-2-gb).
 
 > [!TIP]
 > If PowerShell refuses to run the script, allow it for this session:
@@ -125,7 +126,7 @@ For the people who run your `Setup.exe`:
 | `installerTitle` | `BF1942 & Expansions Installer` | Window title and welcome heading. |
 | `createdBy` | *(empty)* | Adds "Installer created by …" to the welcome and credits pages. |
 | `appPublisher` | `BF1942 Community` | Publisher shown in Installed apps. |
-| `outputBaseFilename` | `BF1942_Expansions_Setup` | File name of the built `.exe`. |
+| `outputBaseFilename` | `BF1942_Expansions_Setup` | File name of the built `.exe` (and of the `.bin` files of a split build). |
 | `defaultInstallDir` | `{sd}\EA Games\Battlefield 1942` | Default install folder. `{sd}` is the system drive. |
 | `appendEAGamesFolder` | `true` | Always install into `<chosen folder>\EA Games\Battlefield 1942`. |
 | `serverShortcutName` | *(empty)* | Name of the "join server" desktop shortcut. |
@@ -228,7 +229,36 @@ Put `WizardImage100.bmp` (164×314) in `branding\` to replace the default Welcom
 | `build\deps\` | Staged components |
 | `build\generated.iss` | Settings passed to Inno Setup |
 | `build\VulkanCheck.exe` | Helper compiled from `installer\VulkanCheck.cs` |
-| `output\` | Your installer |
+| `output\` | Your installer (`Setup.exe`, plus `.bin` files for a split build) |
+
+---
+
+## Installers larger than 2 GB
+
+A single-file `Setup.exe` must stay under 2 GB. A full build with every extra is about 1.97 GB, which fits.
+
+**What `build.ps1` does:**
+
+1. It always builds a single `Setup.exe` first.
+2. If Inno Setup reports that the file is too large, or the finished `Setup.exe` is bigger than 2 GB minus a 64 MB safety margin (2,080,374,784 bytes), the build prints a warning and compiles again as a **split installer**.
+3. A split installer is a small `Setup.exe` plus data files named after it, each just under 2 GB:
+
+   ```
+   output\
+   ├── BF1942_Expansions_Setup.exe      # about 2 MB
+   ├── BF1942_Expansions_Setup-1.bin
+   └── BF1942_Expansions_Setup-2.bin    # only if needed
+   ```
+4. The build summary lists every file with its size and SHA-256, and the total size.
+
+Before each compile, the build deletes the `Setup.exe` and `.bin` files of the previous build, so an old `.bin` file is never mixed up with a new `Setup.exe`.
+
+**Good to know:**
+
+- **Build time:** when the automatic split happens, the installer is compiled twice. Use `-Span` to skip the single-file attempt and build the split installer straight away.
+- **Sharing:** give players **all** the files and tell them to keep them in the same folder. Setup reads the `.bin` files from the folder `Setup.exe` is in; if one is missing, it asks the player where to find it. A ZIP of all the files is the easiest way to keep them together.
+- **Checksums:** publish the SHA-256 of every file, not only of `Setup.exe`.
+- **Keeping a single file:** leave out large extras, or `exclude` optional components in `config.json`, until the build fits again.
 
 ---
 
@@ -265,10 +295,10 @@ The installer you build is a separate file: an unsigned `Setup.exe` can also tri
 
 ## Distributing your installer
 
-- **Size:** the installer is normally a single `.exe`, which must stay under **2 GB**. A full build with every extra is about 1.97 GB. If your build does not fit, `build.ps1` builds it again as `Setup.exe` plus `<name>-1.bin`, `-2.bin`, ... Share all of these files together: players need them in the same folder.
+- **Size:** the installer is normally a single `.exe` under **2 GB** (a full build with every extra is about 1.97 GB). A bigger build is split into `Setup.exe` + `.bin` files, which must be shared together. See [Installers larger than 2 GB](#installers-larger-than-2-gb).
 - **SmartScreen:** unsigned installers show *"Windows protected your PC"*. Players click **More info → Run anyway**. Code signing removes this.
 - **Antivirus:** some antivirus products are suspicious of new, unsigned installers, especially large ones that bundle tools such as PunkBuster, DXVK or dgVoodoo2. Publishing the SHA-256 and signing the installer both help. If a player's antivirus blocks it, submit the file to that vendor as a false positive.
-- **Checksum:** publish the SHA-256 that `build.ps1` prints, so players can verify their download.
+- **Checksum:** publish the SHA-256 that `build.ps1` prints (one per file for a split installer), so players can verify their download.
 - **Licenses:** you are redistributing the bundled components, so read [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) first.
 
 ---
@@ -296,7 +326,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for adding new components.
 | Antivirus quarantines or locks `build.ps1` (for example Bitdefender `Heur.BZC.PZQ.Boxter.*`) | A false positive caused by what the script has to do. See [Antivirus and build.ps1](#antivirus-and-buildps1). |
 | "Access denied" on a file in `build\` | Antivirus is scanning a new file. Run the build again; the script already retries for 30 seconds. |
 | Out of memory while compiling | Set `"compression": "lzma2/max"` in `config.json` |
-| Installer over 2 GB | `build.ps1` splits it into `Setup.exe` + `.bin` files automatically. For a single file, remove large extras or `exclude` optional components |
+| Installer over 2 GB | `build.ps1` splits it into `Setup.exe` + `.bin` files automatically. See [Installers larger than 2 GB](#installers-larger-than-2-gb) |
 | Players get the wrong renderer | They can run `Setup.exe /RENDERER=dxvk` or `/RENDERER=dgvoodoo` |
 | Install problems | The setup log is at `%TEMP%\Setup Log YYYY-MM-DD #NNN.txt` |
 
