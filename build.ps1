@@ -26,6 +26,10 @@
 .PARAMETER Force
     Download every component again, even if it is already in build\cache.
 
+.PARAMETER Span
+    Always split the installer into Setup.exe + .bin data files. Without -Span the build makes a
+    single Setup.exe, and only splits it when that does not fit under 2 GB.
+
 .PARAMETER InstallInnoSetup
     Install Inno Setup 6 with winget if it is not found.
 
@@ -42,6 +46,7 @@ param(
     [switch]$DownloadOnly,
     [switch]$Quick,
     [switch]$Force,
+    [switch]$Span,
     [switch]$InstallInnoSetup
 )
 
@@ -57,6 +62,7 @@ $CacheDir = Join-Path $BuildDir 'cache'
 $DepsDir  = Join-Path $BuildDir 'deps'
 $Extras   = Join-Path $Root 'extras'
 $MinInno  = [version]'6.4.0'   # ExecAndCaptureOutput and array literals in [Code]
+$MaxSetup = 2GB - 64MB        # Largest single Setup.exe (the limit is 2 GB; keep some headroom)
 
 function Write-Step([string]$Text) { Write-Host "`n==> $Text" -ForegroundColor Cyan }
 function Write-Info([string]$Text) { Write-Host "    $Text" }
@@ -437,9 +443,8 @@ if ($DownloadOnly) {
 # 7. Compile
 # ---------------------------------------------------------------------------------------------
 Write-Step 'Compiling the installer (this takes a few minutes for a full build)'
-$isccArgs = @()
-if ($Quick) { $isccArgs += '/DQUICK' }
-$isccArgs += (Join-Path $Root 'installer\BF1942-Installer.iss')
+$outputBase = (Get-Setting 'outputBaseFilename' 'BF1942_Expansions_Setup') -replace '[\\/:*?"<>|]', '_'
+$setup = Join-Path $outputDir "$outputBase.exe"
 $started = Get-Date
 
 # Progress is measured in bytes: ISCC prints "Compressing: <file>" as it starts each file, so every
@@ -471,52 +476,94 @@ function Clear-Bar {
     Write-Host ("`r" + (' ' * $script:barText.Length) + "`r") -NoNewline
     $script:barText = ''
 }
-$doneBytes = 0
-$lastBytes = 0
-$lastDraw = [DateTime]::MinValue
-$lastPct = 0
-$log = New-Object System.Collections.Generic.List[string]
-Write-Bar 0 'Preparing the script...'
-# ISCC writes errors to stderr - with 'Stop', Windows PowerShell would turn the first one into an exception
-$ErrorActionPreference = 'Continue'
-& $iscc @isccArgs 2>&1 | ForEach-Object {
-    $line = "$_"
-    $log.Add($line)
-    if ($line -match '^\s*Compressing: (.+?)(\s{3}\(.*\))?$') {
-        $doneBytes += $lastBytes
-        $file = $Matches[1]
-        $lastBytes = $sizes[$file]
-        if (-not $lastBytes) { $lastBytes = 0 }
-        if (((Get-Date) - $lastDraw).TotalMilliseconds -ge 250) {
-            $lastPct = [math]::Min(99, [int](100 * $doneBytes / $totalBytes))
-            $elapsed = ((Get-Date) - $started).ToString('mm\:ss')
-            Write-Bar $lastPct "$elapsed - $(Split-Path $file -Leaf)"
-            $lastDraw = Get-Date
+
+# Output files of this build: Setup.exe, plus <OutputBase>-1.bin, -2.bin, ... when it is split
+function Get-SliceFiles {
+    return @(Get-ChildItem -LiteralPath $outputDir -Filter "$outputBase-*.bin" -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -match ('^' + [regex]::Escape($outputBase) + '-\d+\.bin$') } | Sort-Object Name)
+}
+
+# Runs ISCC once and returns its exit code. SpanBuild defines SPAN (Setup.exe + .bin files).
+function Invoke-Iscc([bool]$SpanBuild) {
+    # Remove the output of an earlier build, so no stale .bin files are left next to the new Setup.exe
+    if (Test-Path -LiteralPath $setup) { Remove-Item -LiteralPath $setup -Force }
+    foreach ($old in Get-SliceFiles) { Remove-Item -LiteralPath $old.FullName -Force }
+    $isccArgs = @()
+    if ($Quick) { $isccArgs += '/DQUICK' }
+    if ($SpanBuild) { $isccArgs += '/DSPAN' }
+    $isccArgs += (Join-Path $Root 'installer\BF1942-Installer.iss')
+    $attempt = Get-Date
+    $doneBytes = 0
+    $lastBytes = 0
+    $lastDraw = [DateTime]::MinValue
+    $lastPct = 0
+    $script:log = New-Object System.Collections.Generic.List[string]
+    Write-Bar 0 'Preparing the script...'
+    # ISCC writes errors to stderr - with 'Stop', Windows PowerShell would turn the first one into an exception
+    $ErrorActionPreference = 'Continue'
+    & $iscc @isccArgs 2>&1 | ForEach-Object {
+        $line = "$_"
+        $script:log.Add($line)
+        if ($line -match '^\s*Compressing: (.+?)(\s{3}\(.*\))?$') {
+            $doneBytes += $lastBytes
+            $file = $Matches[1]
+            $lastBytes = $sizes[$file]
+            if (-not $lastBytes) { $lastBytes = 0 }
+            if (((Get-Date) - $lastDraw).TotalMilliseconds -ge 250) {
+                $lastPct = [math]::Min(99, [int](100 * $doneBytes / $totalBytes))
+                $elapsed = ((Get-Date) - $attempt).ToString('mm\:ss')
+                Write-Bar $lastPct "$elapsed - $(Split-Path $file -Leaf)"
+                $lastDraw = Get-Date
+            }
+        } elseif ($line -match '^\s*Compressing Setup program executable') {
+            Write-Bar 99 'Finishing Setup.exe...'
+        } elseif ($line -match '^\s*Warning:') {
+            # Print the warning on its own line, then redraw the bar below it
+            $keep = $script:barText
+            Clear-Bar
+            Write-Note ($line.Trim() -replace '^Warning:\s*', '')
+            if ($keep) { Write-Bar $lastPct ($keep -replace '^.*?%\s*', '') }
         }
-    } elseif ($line -match '^\s*Compressing Setup program executable') {
-        Write-Bar 99 'Finishing Setup.exe...'
-    } elseif ($line -match '^\s*Warning:') {
-        # Print the warning on its own line, then redraw the bar below it
-        $keep = $barText
-        Clear-Bar
-        Write-Note ($line.Trim() -replace '^Warning:\s*', '')
-        if ($keep) { Write-Bar $lastPct ($keep -replace '^.*?%\s*', '') }
+    }
+    $code = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    if ($code -eq 0) { Write-Bar 100 'Done' }
+    if ($script:barLive) { Write-Host '' }
+    $script:barText = ''
+    return $code
+}
+
+# Build a single Setup.exe first. If it does not fit under 2 GB, build it again split into .bin files.
+$exitCode = Invoke-Iscc ([bool]$Span)
+if (-not $Span) {
+    $tooLarge = $false
+    if ($exitCode -ne 0) {
+        $tooLarge = [bool]($log | Where-Object { $_ -match 'too large|2 GB|exceed|DiskSpanning' })
+    } elseif ((Get-Item -LiteralPath $setup).Length -gt $MaxSetup) {
+        $tooLarge = $true
+    }
+    if ($tooLarge) {
+        Write-Note 'The installer does not fit in a single Setup.exe under 2 GB - building it again as Setup.exe + .bin files'
+        $exitCode = Invoke-Iscc $true
     }
 }
-$exitCode = $LASTEXITCODE
-$ErrorActionPreference = 'Stop'
-if ($exitCode -eq 0) { Write-Bar 100 'Done' }
-if ($barLive) { Write-Host '' }
 if ($exitCode -ne 0) {
     $log | Select-Object -Last 25 | ForEach-Object { Write-Host "    $_" }
     Stop-Build "Inno Setup failed (exit code $exitCode). See the messages above."
 }
 
-$setup = Join-Path $outputDir ((Get-Setting 'outputBaseFilename' 'BF1942_Expansions_Setup') -replace '[\\/:*?"<>|]', '_')
-$setup = "$setup.exe"
 $item = Get-Item -LiteralPath $setup
+$slices = Get-SliceFiles
 Write-Host ''
 Write-Good ("Built {0} in {1:N1} minutes" -f $item.Name, ((Get-Date) - $started).TotalMinutes)
-Write-Info ("Size:    {0:N0} bytes ({1:N0} MB below the 2 GB single-file limit)" -f $item.Length, ((2147483648 - $item.Length) / 1MB))
-Write-Info ("SHA-256: {0}" -f (Get-Sha256 $setup))
+if ($slices.Count) {
+    $total = $item.Length + ($slices | Measure-Object Length -Sum).Sum
+    Write-Info ("Split into {0} + {1} .bin file(s), {2:N0} bytes in total. Players need all of them in the same folder." -f $item.Name, $slices.Count, $total)
+    foreach ($f in @($item) + $slices) {
+        Write-Info ("{0}  {1:N0} bytes  SHA-256: {2}" -f $f.Name, $f.Length, (Get-Sha256 $f.FullName))
+    }
+} else {
+    Write-Info ("Size:    {0:N0} bytes ({1:N0} MB below the 2 GB single-file limit)" -f $item.Length, ((2147483648 - $item.Length) / 1MB))
+    Write-Info ("SHA-256: {0}" -f (Get-Sha256 $setup))
+}
 if ($Quick) { Write-Note 'This was a -Quick build without the game files - do not distribute it.' }

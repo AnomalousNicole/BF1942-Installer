@@ -81,12 +81,19 @@ UninstallDisplayIcon={app}\BF1942.exe
 UninstallDisplayName={#AppName}
 OutputDir={#OutputDir}
 OutputBaseFilename={#OutputBase}
-; Single-file Setup.exe (no .bin slices) - the installer must stay under 2 GB
+; A single Setup.exe must stay under 2 GB. build.ps1 defines SPAN when the build does not fit,
+; which keeps Setup.exe small and puts the data in <OutputBase>-1.bin, -2.bin, ... next to it
 Compression={#Compression}
 SolidCompression=yes
 LZMAUseSeparateProcess=yes
 LZMANumBlockThreads=4
+#ifdef SPAN
+DiskSpanning=yes
+; Just under 2 GB per slice ("max" means unlimited on Inno Setup 6.5+)
+DiskSliceSize=2100000000
+#else
 DiskSpanning=no
+#endif
 SetupLogging=yes
 VersionInfoDescription={#InstallerTitle}
 VersionInfoCompany={#AppPublisher}

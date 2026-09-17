@@ -217,6 +217,7 @@ Put `WizardImage100.bmp` (164×314) in `branding\` to replace the default Welcom
 | `-Quick` | Compile without the game files. A fast check of the script and components. **Don't distribute the result.** |
 | `-DownloadOnly` | Download and stage the components, then stop |
 | `-Force` | Download everything again instead of using `build\cache` |
+| `-Span` | Always split the installer into `Setup.exe` + `.bin` files (done automatically when a single file would be over 2 GB) |
 | `-InstallInnoSetup` | Install Inno Setup with winget if it is missing |
 
 **What gets created** (all git-ignored):
@@ -264,7 +265,7 @@ The installer you build is a separate file: an unsigned `Setup.exe` can also tri
 
 ## Distributing your installer
 
-- **Size:** the installer is a single `.exe` that must stay under **2 GB**. A full build with every extra is about 1.97 GB.
+- **Size:** the installer is normally a single `.exe`, which must stay under **2 GB**. A full build with every extra is about 1.97 GB. If your build does not fit, `build.ps1` builds it again as `Setup.exe` plus `<name>-1.bin`, `-2.bin`, ... Share all of these files together: players need them in the same folder.
 - **SmartScreen:** unsigned installers show *"Windows protected your PC"*. Players click **More info → Run anyway**. Code signing removes this.
 - **Antivirus:** some antivirus products are suspicious of new, unsigned installers, especially large ones that bundle tools such as PunkBuster, DXVK or dgVoodoo2. Publishing the SHA-256 and signing the installer both help. If a player's antivirus blocks it, submit the file to that vendor as a false positive.
 - **Checksum:** publish the SHA-256 that `build.ps1` prints, so players can verify their download.
@@ -295,7 +296,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for adding new components.
 | Antivirus quarantines or locks `build.ps1` (for example Bitdefender `Heur.BZC.PZQ.Boxter.*`) | A false positive caused by what the script has to do. See [Antivirus and build.ps1](#antivirus-and-buildps1). |
 | "Access denied" on a file in `build\` | Antivirus is scanning a new file. Run the build again; the script already retries for 30 seconds. |
 | Out of memory while compiling | Set `"compression": "lzma2/max"` in `config.json` |
-| Installer over 2 GB | Remove large extras, or `exclude` optional components |
+| Installer over 2 GB | `build.ps1` splits it into `Setup.exe` + `.bin` files automatically. For a single file, remove large extras or `exclude` optional components |
 | Players get the wrong renderer | They can run `Setup.exe /RENDERER=dxvk` or `/RENDERER=dgvoodoo` |
 | Install problems | The setup log is at `%TEMP%\Setup Log YYYY-MM-DD #NNN.txt` |
 
