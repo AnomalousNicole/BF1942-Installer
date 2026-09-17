@@ -1,14 +1,15 @@
 {
+  "_about": "Typical compression ratios (compressed / packed bytes), used to predict the installer size before the first build on this PC. Measured on the MoonGamers build of this installer with Inno Setup 7.1, not on a build of this template, so they are an estimate - a real full build of the template should replace them. Once this PC has built, build\\size-history.json is used instead.",
   "full|lzma2/ultra64": {
     "ratio": 0.834,
-    "note": "Retail game + expansions with every extra: about 2,367 MB packed into 1,974 MB"
+    "note": "Retail game + expansions with every extra: about 2,367 MB packed into 1,974 MB (MoonGamers build)"
   },
   "full|lzma2/ultra64|smallest": {
     "ratio": 0.790,
-    "note": "Same files with -Smallest (one stream, 1 GB dictionary): packed into 1,871 MB"
+    "note": "Same files with -Smallest (one stream, 1 GB dictionary): packed into 1,871 MB (MoonGamers build)"
   },
   "quick|lzma2/ultra64": {
     "ratio": 0.784,
-    "note": "-Quick build (components only): about 342 MB packed into 268 MB"
+    "note": "-Quick build (components only): about 342 MB packed into 268 MB (MoonGamers build)"
   }
 }

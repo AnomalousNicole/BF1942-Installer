@@ -38,6 +38,7 @@ Only use **official** download locations, such as the project's GitHub releases 
 - For paths in `[Code]`, use the built-in helpers (`PathCombine`, `PathSame`, `PathStartsWith`, `PathEndsWith`, `PathNormalizeSlashes`) instead of string handling.
 - Use Inno Setup's handle types (`HWND`, `HDC`, ...) in `external` declarations of Windows API functions.
 - The installer stays 32-bit (`SetupArchitecture` is not set), so it also runs on 32-bit Windows 10 and keeps writing the game's registry keys to the 32-bit view.
+- The ratios in `size-seed.json` are measured on the MoonGamers build of this installer, not on a build of this template. If you do a full build of the template with the stock components, please update them from your `build\size-history.json` (`compressed / packed`) and say in the pull request which build they come from.
 
 ## Pull requests
 

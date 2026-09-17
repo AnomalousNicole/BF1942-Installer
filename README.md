@@ -238,13 +238,13 @@ Put `WizardImage100.bmp` (164×314) in `branding\` to replace the default Welcom
 
 ## Very large installers
 
-A single-file `Setup.exe` can be up to 4,200,000,000 bytes (about 4 GB; Inno Setup 6.5.2 raised this from 2 GB). A full build with every extra is about 1.97 GB, so it fits easily.
+A single-file `Setup.exe` can be up to 4,200,000,000 bytes (about 4 GB; Inno Setup 6.5.2 raised this from 2 GB). A full build with every extra is about 1.97 GB, or about 1.87 GB with `-Smallest`, so it fits easily.
 
 **What `build.ps1` does:**
 
 1. Before compiling, it decides whether to build a single `Setup.exe` or a split installer:
    - If the files to pack are smaller than the limit, it builds a single `Setup.exe`.
-   - Otherwise it predicts the compressed size from the previous build with the same compression setting (saved in `build\size-history.json`). On the first build it uses the typical compression ratio in `size-seed.json` instead. If the prediction is clearly over the limit (by more than 2%), it builds the split installer straight away, so the installer is only compiled once.
+   - Otherwise it predicts the compressed size from the previous build with the same compression setting (saved in `build\size-history.json`). On the first build it uses the typical compression ratio in `size-seed.json` instead. Those seed ratios are measured on the MoonGamers build of this installer, not on a build of this template, so treat them as an estimate; every build you run replaces them with your own figures in `build\size-history.json`. If the prediction is clearly over the limit (by more than 2%), it builds the split installer straight away, so the installer is only compiled once.
    - If neither file has an entry for your compression setting, or the prediction is close to the limit, it tries a single `Setup.exe` first.
 2. If a single `Setup.exe` was tried and Inno Setup reports that the file is too large, or the finished `Setup.exe` is bigger than that limit minus a 64 MB safety margin (4,132,891,136 bytes), the build prints a warning and compiles again as a **split installer**.
 3. A split installer is a small `Setup.exe` plus data files named after it, each just under 2 GB:
@@ -301,7 +301,7 @@ The installer you build is a separate file: an unsigned `Setup.exe` can also tri
 
 ## Distributing your installer
 
-- **Size:** the installer is a single `.exe` of about 1.97 GB with every extra. Only a build over about 4 GB is split into `Setup.exe` + `.bin` files, which must be shared together. See [Very large installers](#very-large-installers).
+- **Size:** the installer is a single `.exe` of about 1.97 GB with every extra, or about 1.87 GB when you build it with `-Smallest`. Only a build over about 4 GB is split into `Setup.exe` + `.bin` files, which must be shared together. See [Very large installers](#very-large-installers).
 - **SmartScreen:** unsigned installers show *"Windows protected your PC"*. Players click **More info → Run anyway**. Code signing removes this.
 - **Antivirus:** some antivirus products are suspicious of new, unsigned installers, especially large ones that bundle tools such as PunkBuster, DXVK or dgVoodoo2. Publishing the SHA-256 and signing the installer both help. If a player's antivirus blocks it, submit the file to that vendor as a false positive.
 - **Checksum:** publish the SHA-256 that `build.ps1` prints (one per file for a split installer), so players can verify their download.

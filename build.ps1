@@ -693,7 +693,7 @@ if ($history.ContainsKey($historyKey) -and $history[$historyKey].inputBytes -gt 
 } else {
     try {
         $seed = (Get-Content -LiteralPath (Join-Path $Root 'size-seed.json') -Raw -ErrorAction Stop | ConvertFrom-Json).$historyKey
-        if ($seed.ratio -gt 0) { $ratio = [double]$seed.ratio; $ratioSource = 'the typical compression in size-seed.json' }
+        if ($seed.ratio -gt 0) { $ratio = [double]$seed.ratio; $ratioSource = 'the typical compression in size-seed.json (measured on the MoonGamers build)' }
     } catch { }
 }
 $split = [bool]$Span
