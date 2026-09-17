@@ -18,6 +18,6 @@ Optional components that are **not downloaded automatically**, because they have
 
 **If a file doesn't match the tested SHA-256,** the build shows a warning and still includes it.
 
-**Fonts:** add any number of the font sizes. The installer always offers "Keep the game's own font", plus every font found here. **2x** is pre-selected when it is present.
+**Fonts:** add any number of the font sizes, but at least one (the game folder's own `Font.rfa` is never included). The installer offers every font found here. **2x** is pre-selected when it is present, otherwise the closest available size.
 
 To leave a component out even though its file is here, add its id to `"exclude"` in `config.json`. The ids are `punkbuster42`, `compat`, `hiresui`, `font_original`, `font_1x`, `font_2x`, `font_3x`, `font_35x` and `font_4x`.

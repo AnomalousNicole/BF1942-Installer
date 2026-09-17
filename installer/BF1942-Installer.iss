@@ -18,6 +18,23 @@
 #define DotNetVer Ver_dotnet8
 #define StateKeyParent ExtractFileDir(StateKey)
 #define HasFontPack (Has_font_original || Has_font_1x || Has_font_2x || Has_font_3x || Has_font_35x || Has_font_4x)
+#if !HasFontPack
+  #error No font in extras\Fonts - the game's own Font.rfa is not shipped, so at least one font is required
+#endif
+; Pre-selected font: 2x when present, otherwise the closest available size
+#if Has_font_2x
+  #define DefaultFont "x2"
+#elif Has_font_1x
+  #define DefaultFont "x1"
+#elif Has_font_3x
+  #define DefaultFont "x3"
+#elif Has_font_35x
+  #define DefaultFont "x35"
+#elif Has_font_4x
+  #define DefaultFont "x4"
+#else
+  #define DefaultFont "original"
+#endif
 
 ; ---- Welcome page list of included community tools ----
 #define WelcomeTools "%n  • BF42++ " + Ver_bf42pp + " by Casqade%n  • DXVK " + Ver_dxvk + " by Philip Rebohle (doitsujin)%n  • dgVoodoo2 " + Ver_dgvoodoo2 + " by Dege (dege-diosg)%n  • DSOAL + OpenAL Soft by Chris Robinson (kcat)"
@@ -118,28 +135,23 @@ Name: "hiresui"; Description: "Higher resolution UI - 0.1 (sharper menus and HUD
 #endif
 #if HasFontPack
 Name: "font"; Description: "Font"; Types: recommended custom; Flags: fixed
-  #if Has_font_2x
-Name: "font\stock"; Description: "Keep the game's own font"; Flags: exclusive
-  #else
-Name: "font\stock"; Description: "Keep the game's own font"; Types: recommended; Flags: exclusive
-  #endif
   #if Has_font_original
-Name: "font\original"; Description: "BF1942 Original Font - for 800x600 / 1024x768"; Flags: exclusive
+Name: "font\original"; Description: "BF1942 Original Font - for 800x600 / 1024x768"; {#DefaultFont == "original" ? "Types: recommended; " : ""}Flags: exclusive
   #endif
   #if Has_font_1x
-Name: "font\x1"; Description: "Font size: 1x - for 1280x720 / 1366x768"; Flags: exclusive
+Name: "font\x1"; Description: "Font size: 1x - for 1280x720 / 1366x768"; {#DefaultFont == "x1" ? "Types: recommended; " : ""}Flags: exclusive
   #endif
   #if Has_font_2x
 Name: "font\x2"; Description: "Font size: 2x (most common) - for 1920x1080"; Types: recommended; Flags: exclusive
   #endif
   #if Has_font_3x
-Name: "font\x3"; Description: "Font size: 3x - for 2560x1440"; Flags: exclusive
+Name: "font\x3"; Description: "Font size: 3x - for 2560x1440"; {#DefaultFont == "x3" ? "Types: recommended; " : ""}Flags: exclusive
   #endif
   #if Has_font_35x
-Name: "font\x35"; Description: "Font size: 3.5x - for 3440x1440 / 2560x1600"; Flags: exclusive
+Name: "font\x35"; Description: "Font size: 3.5x - for 3440x1440 / 2560x1600"; {#DefaultFont == "x35" ? "Types: recommended; " : ""}Flags: exclusive
   #endif
   #if Has_font_4x
-Name: "font\x4"; Description: "Font size: 4x - for 3840x2160 (4K)"; Flags: exclusive
+Name: "font\x4"; Description: "Font size: 4x - for 3840x2160 (4K)"; {#DefaultFont == "x4" ? "Types: recommended; " : ""}Flags: exclusive
   #endif
 #endif
 
@@ -159,13 +171,8 @@ Source: "{#BuildDir}\VulkanCheck.exe"; Flags: dontcopy
 
 ; Base game (the Tools folder is not shipped - DirectX/DirectPlay are handled by the installer)
 #ifndef QUICK
-  #if HasFontPack
-; Font.rfa comes from the Font component instead
+; The game folder's own Font.rfa is never shipped - Font.rfa always comes from the Font component
 Source: "{#GameDir}\*"; Excludes: "\Mods\bf1942\Archives\Font.rfa,\Tools"; DestDir: "{app}"; Components: game; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "{#GameDir}\Mods\bf1942\Archives\Font.rfa"; DestDir: "{app}\Mods\bf1942\Archives"; Components: font\stock; Flags: ignoreversion
-  #else
-Source: "{#GameDir}\*"; Excludes: "\Tools"; DestDir: "{app}"; Components: game; Flags: ignoreversion recursesubdirs createallsubdirs
-  #endif
 #endif
 
 ; Required fixes (next to BF1942.exe)
@@ -832,7 +839,7 @@ begin
   S := S + L('  Higher resolution UI 0.1 - higher resolution menu/interface textures (menu.rfa)') + L('');
 #endif
 #if HasFontPack
-  S := S + L('  Font - keep the game''s font, or pick the original or a larger in-game font') + L('');
+  S := S + L('  Font - pick the original or a larger in-game font') + L('');
 #endif
   S := S + H('NOTES');
 #if GenerateSerial
