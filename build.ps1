@@ -10,6 +10,7 @@
     4. Detects the optional files you placed in extras\ (Punkbuster42, fonts, ...).
     5. Compiles the VulkanCheck helper and writes build\generated.iss.
     6. Runs Inno Setup and writes the installer to output\.
+    7. With -Package7z, packs the finished installer into a .7z archive with 7-Zip.
 
 .PARAMETER GameDir
     Folder that contains BF1942.exe. Overrides "gameDir" in config.json.
@@ -37,6 +38,24 @@
     setting). A full build is about 100 MB (5%) smaller, but takes about 16 minutes instead of 2-3 and
     needs about 12 GB of free RAM. Use it for release builds.
 
+.PARAMETER Package7z
+    After the build, pack the installer files into output\<name>.7z with 7-Zip. Meant for split
+    builds: the player downloads one archive instead of Setup.exe plus several .bin files. The build
+    uses an installed 7z.exe (PATH, the 7-Zip folder or its registry key) and otherwise downloads the
+    standalone 7zr.exe console tool into build\tools. The archive stores the files as they are unless
+    -PackageLevel asks for compression.
+
+.PARAMETER PackageLevel
+    7-Zip compression level for -Package7z: 0 (store, the default), 1, 3, 5, 7 or 9 (ultra).
+    Inno Setup has already compressed the installer, so anything above 0 costs a lot of time for a
+    fraction of a percent: measured on a 1.87 GB release build, storing takes seconds and -mx=9 takes
+    minutes to save about 0.2%. Use 9 only when the size of the download really is the priority.
+
+.PARAMETER PackageVolumeSize
+    Split the archive into volumes of this size (7-Zip -v), for example 2g, 700m or 1900000000b. The
+    output is <name>.7z.001, <name>.7z.002, ... - one archive that a player extracts in one go, sized
+    for what a file host accepts. Implies -Package7z.
+
 .PARAMETER NoInnoUpdate
     Do not install or update Inno Setup 7 with winget - use the installed version as it is.
     Without this switch, every build installs Inno Setup 7 if it is missing and updates it to the
@@ -57,10 +76,18 @@ param(
     [switch]$Force,
     [switch]$Span,
     [switch]$Smallest,
+    [switch]$Package7z,
+    [ValidateSet(0, 1, 3, 5, 7, 9)]
+    [int]$PackageLevel = 0,
+    [ValidatePattern('^\d+[bkmgBKMG]$')]
+    [string]$PackageVolumeSize,
     [switch]$NoInnoUpdate
 )
 
 $ErrorActionPreference = 'Stop'
+# -PackageLevel and -PackageVolumeSize only make sense together with the packaging step, so either
+# one switches it on by itself
+$Package7z = [bool]($Package7z -or $PSBoundParameters.ContainsKey('PackageLevel') -or $PackageVolumeSize)
 $buildStart = Get-Date
 $ProgressPreference = 'SilentlyContinue'   # Invoke-WebRequest is very slow with the progress bar on
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
@@ -71,6 +98,7 @@ if (-not $Config) { $Config = Join-Path $Root 'config.json' }
 $BuildDir = Join-Path $Root 'build'
 $CacheDir = Join-Path $BuildDir 'cache'
 $DepsDir  = Join-Path $BuildDir 'deps'
+$ToolsDir = Join-Path $BuildDir 'tools'   # build-only helpers, currently just 7zr.exe for -Package7z
 $Extras   = Join-Path $Root 'extras'
 # Builds always use the latest Inno Setup 7.x (installed/updated with winget). winget lists each major
 # version as its own package, so moving to Inno Setup 8 means changing these lines (and the check in the .iss).
@@ -164,6 +192,18 @@ function Get-BytesSha256([byte[]]$Bytes) {
     try { return ([BitConverter]::ToString($sha.ComputeHash($Bytes))).Replace('-', '') } finally { $sha.Dispose() }
 }
 
+# Microsoft's .NET release feed publishes SHA-512 hashes, so downloads can be verified even though
+# their version (and therefore their hash) is not pinned in components.json.
+function Get-BytesSha512([byte[]]$Bytes) {
+    $sha = [Security.Cryptography.SHA512]::Create()
+    try { return ([BitConverter]::ToString($sha.ComputeHash($Bytes))).Replace('-', '') } finally { $sha.Dispose() }
+}
+
+function Get-BytesHash([byte[]]$Bytes, [string]$Algo) {
+    if ($Algo -eq 'SHA-512') { return Get-BytesSha512 $Bytes }
+    return Get-BytesSha256 $Bytes
+}
+
 # Deletes a file, retrying while an antivirus scanner or Explorer still holds it open (the finished
 # installer is often still being scanned when the next build starts)
 function Remove-WithRetry([string]$Path) {
@@ -201,14 +241,16 @@ function Read-AllBytes([string]$Path) {
 # Returns the bytes of a download, verified against its SHA-256. Downloads are handled in memory so
 # that an antivirus scan of the cached copy cannot block the build; build\cache is only a speed-up.
 # NoCache: never write the archive to disk (some antivirus products flag files inside the dgVoodoo2 zip).
-function Get-Download([string]$Url, [string]$FileName, [string]$Sha256, [bool]$NoCache) {
+function Get-Download([string]$Url, [string]$FileName, [string]$Sha256, [bool]$NoCache, [string]$Sha512) {
     $path = Join-Path $CacheDir $FileName
     $want = $null
-    if ($Sha256) { $want = $Sha256.ToUpper() }
+    $algo = 'SHA-256'
+    if ($Sha512) { $want = $Sha512.ToUpper(); $algo = 'SHA-512' }
+    elseif ($Sha256) { $want = $Sha256.ToUpper() }
     if (-not $NoCache -and (Test-Path -LiteralPath $path) -and -not $Force) {
         $bytes = $null
         try { $bytes = Read-AllBytes $path } catch { }
-        if ($bytes -and (-not $want -or (Get-BytesSha256 $bytes) -eq $want)) { return , $bytes }
+        if ($bytes -and (-not $want -or (Get-BytesHash $bytes $algo) -eq $want)) { return , $bytes }
         Write-Note "$FileName in build\cache is unreadable or out of date - downloading it again"
     }
     Write-Info "Downloading $FileName"
@@ -220,15 +262,90 @@ function Get-Download([string]$Url, [string]$FileName, [string]$Sha256, [bool]$N
         Stop-Build "Download failed: $Url`n       $($_.Exception.Message)"
     }
     if ($want) {
-        $actual = Get-BytesSha256 $bytes
+        $actual = Get-BytesHash $bytes $algo
         if ($actual -ne $want) {
-            Stop-Build "SHA-256 mismatch for $FileName`n       expected $want`n       got      $actual`n       The file on the server changed. Check the project page before updating components.json."
+            Stop-Build "$algo mismatch for $FileName`n       expected $want`n       got      $actual`n       The file on the server changed. Check the project page before updating components.json."
         }
     }
     if (-not $NoCache) {
         try { [IO.File]::WriteAllBytes($path, $bytes) } catch { Write-Note "Could not cache $FileName ($($_.Exception.Message))" }
     }
     return , $bytes
+}
+
+# Resolves the newest patch release of a .NET channel (e.g. 8.0) from Microsoft's release feed, so that
+# every build ships the current security update instead of the version that happened to be pinned in
+# components.json. The feed also publishes a SHA-512 per file, so an unpinned download is still verified.
+# Returns $null if the feed cannot be read - the build then falls back to the pinned url/sha256.
+function Resolve-DotnetRelease($Resolve) {
+    $channel = $Resolve.channel      # '8.0' - never drifts to another major version
+    $product = $Resolve.product      # 'windowsdesktop' (Desktop Runtime) or 'runtime'
+    $rid     = $Resolve.rid          # 'win-x64'
+    $feed    = "https://builds.dotnet.microsoft.com/dotnet/release-metadata/$channel/releases.json"
+    try {
+        $client = New-Object Net.WebClient
+        $client.Headers['User-Agent'] = 'BF1942-Installer-build'
+        $json = $client.DownloadString($feed) | ConvertFrom-Json
+    } catch {
+        Write-Note "Could not read the .NET $channel release feed ($($_.Exception.Message))"
+        return $null
+    }
+    $release = @($json.releases | Where-Object { $_.'release-version' -eq $json.'latest-release' }) | Select-Object -First 1
+    $prod = if ($release) { $release.$product } else { $null }
+    $file = @($prod.files | Where-Object { $_.rid -eq $rid -and $_.name -like '*.exe' }) | Select-Object -First 1
+    if (-not $file -or -not $file.url) {
+        Write-Note "The .NET $channel release feed has no $product $rid installer"
+        return $null
+    }
+    $eol = $null
+    try { if ($json.'eol-date') { $eol = [datetime]::Parse($json.'eol-date') } } catch { }
+    if ($eol) {
+        $days = [int]($eol - (Get-Date).Date).TotalDays
+        if ($days -lt 0)      { Write-Note ".NET $channel reached end of support on $($json.'eol-date') - it no longer gets security updates" }
+        elseif ($days -le 90) { Write-Note ".NET $channel reaches end of support on $($json.'eol-date') ($days days)" }
+    }
+    return [pscustomobject]@{
+        version  = $prod.version
+        url      = $file.url
+        fileName = ($file.url -split '/')[-1]
+        sha512   = $file.hash
+    }
+}
+
+# 7-Zip for -Package7z: an installed 7z.exe, or the standalone console build in build\tools.
+function Find-SevenZip {
+    $cmd = Get-Command '7z.exe' -ErrorAction SilentlyContinue
+    if ($cmd -and $cmd.Source) { return $cmd.Source }
+    $candidates = New-Object System.Collections.Generic.List[string]
+    foreach ($key in 'HKLM:\SOFTWARE\7-Zip', 'HKCU:\SOFTWARE\7-Zip') {
+        if (Test-Path $key) {
+            $path = (Get-ItemProperty $key).PSObject.Properties['Path']
+            if ($path -and $path.Value) { $candidates.Add((Join-Path $path.Value '7z.exe')) }
+        }
+    }
+    $candidates.Add((Join-Path $env:ProgramFiles '7-Zip\7z.exe'))
+    if (${env:ProgramFiles(x86)}) { $candidates.Add((Join-Path ${env:ProgramFiles(x86)} '7-Zip\7z.exe')) }
+    $candidates.Add((Join-Path $ToolsDir '7zr.exe'))
+    foreach ($c in $candidates) { if ($c -and (Test-Path -LiteralPath $c)) { return $c } }
+    return $null
+}
+
+# Returns the 7-Zip to use, downloading the pinned standalone 7zr.exe ("tools" in components.json)
+# when 7-Zip is not installed. 7zr.exe only handles .7z, which is all this build needs.
+function Get-SevenZip($Manifest) {
+    $found = Find-SevenZip
+    if ($found) {
+        $version = (& $found 2>&1 | Select-Object -First 2 | Where-Object { $_ -match '7-Zip' }) -replace '^\s*(7-Zip[^:]*).*$', '$1'
+        Write-Good "+ $(if ($version) { $version.Trim() } else { '7-Zip' }) ($found)"
+        return $found
+    }
+    $tool = @($Manifest.tools | Where-Object { $_.id -eq '7zr' }) | Select-Object -First 1
+    if (-not $tool) { Stop-Build 'components.json has no "7zr" entry under "tools", so 7-Zip cannot be downloaded.' }
+    New-Item -ItemType Directory -Force -Path $ToolsDir | Out-Null
+    $out = Join-Path $ToolsDir $tool.fileName
+    [IO.File]::WriteAllBytes($out, (Get-Download $tool.url $tool.fileName $tool.sha256 $false))
+    Write-Good "+ $(Format-Credit $tool) (downloaded to build\tools - not part of your installer)"
+    return $out
 }
 
 function Expand-ZipEntries([byte[]]$Bytes, [string]$Name, $Map, [string]$Dest) {
@@ -432,11 +549,27 @@ foreach ($c in $manifest.components) {
         continue
     }
     New-Item -ItemType Directory -Path $dest | Out-Null
+    $resolvedNote = ''
     foreach ($d in @($c.downloads)) {
+        # "resolve" downloads are not pinned: their newest release is looked up at build time
+        $resolve = $d.PSObject.Properties['resolve']
+        if ($resolve -and $resolve.Value) {
+            $latest = Resolve-DotnetRelease $resolve.Value
+            if ($latest) {
+                $d.url      = $latest.url
+                $d.fileName = $latest.fileName
+                $d.sha256   = $null
+                $d | Add-Member -NotePropertyName sha512 -NotePropertyValue $latest.sha512 -Force
+                $c.version  = $latest.version
+                $resolvedNote = "latest $($resolve.Value.channel) release, SHA-512 from Microsoft's release feed"
+            } else {
+                Write-Note "Falling back to the version pinned in components.json ($($c.version))"
+            }
+        }
         $noCache = $false
         $cacheSetting = $d.PSObject.Properties['cache']
         if ($cacheSetting -and $cacheSetting.Value -eq $false) { $noCache = $true }
-        $bytes = Get-Download $d.url $d.fileName $d.sha256 $noCache
+        $bytes = Get-Download $d.url $d.fileName $d.sha256 $noCache $d.sha512
         switch ($d.type) {
             'file' {
                 $out = Join-Path $dest $d.fileName
@@ -445,7 +578,10 @@ foreach ($c in $manifest.components) {
                 $signer = $d.PSObject.Properties['signedBy']
                 if ($signer -and $signer.Value) {
                     $sig = Get-AuthenticodeSignature -LiteralPath $out
-                    if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notlike "CN=$($signer.Value),*") {
+                    # The name can be the common name (VC++: CN=Microsoft Corporation) or the
+                    # organisation (.NET: CN=.NET, O=Microsoft Corporation)
+                    $subject = "$($sig.SignerCertificate.Subject),"
+                    if ($sig.Status -ne 'Valid' -or ($subject -notlike "*CN=$($signer.Value),*" -and $subject -notlike "*O=$($signer.Value),*")) {
                         Remove-Item -LiteralPath (Join-Path $CacheDir $d.fileName) -Force -ErrorAction SilentlyContinue
                         Stop-Build "$($d.fileName) is not validly signed by $($signer.Value) (status: $($sig.Status))."
                     }
@@ -462,7 +598,8 @@ foreach ($c in $manifest.components) {
     if (Test-Path -LiteralPath $overlay) { Copy-Item -Path (Join-Path $overlay '*') -Destination $dest -Recurse -Force }
     $included[$c.id] = $c
     $pin = ''
-    if (@($c.downloads).Count -gt 0 -and -not (@($c.downloads) | Where-Object { $_.sha256 })) { $pin = ' (not pinned - signature verified)' }
+    if ($resolvedNote) { $pin = " ($resolvedNote)" }
+    elseif (@($c.downloads).Count -gt 0 -and -not (@($c.downloads) | Where-Object { $_.sha256 -or $_.sha512 })) { $pin = ' (not pinned - signature verified)' }
     Write-Good "+ $(Format-Credit $c)$pin"
 }
 foreach ($c in $included.Values) {
@@ -486,6 +623,15 @@ foreach ($e in $manifest.extras) {
     } else {
         Write-Good "+ $(Format-Credit $e)"
     }
+}
+
+# ---------------------------------------------------------------------------------------------
+# 4b. 7-Zip (-Package7z only; looked up now so a long build cannot fail at the very last step)
+# ---------------------------------------------------------------------------------------------
+$sevenZip = $null
+if ($Package7z -and -not $DownloadOnly) {
+    Write-Step '7-Zip (-Package7z)'
+    $sevenZip = Get-SevenZip $manifest
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -630,6 +776,12 @@ function Get-SliceFiles {
         Where-Object { $_.Name -match ('^' + [regex]::Escape($outputBase) + '-\d+\.bin$') } | Sort-Object Name)
 }
 
+# Archive files of -Package7z: <OutputBase>.7z, or <OutputBase>.7z.001, .002, ... with -v
+function Get-ArchiveFiles {
+    return @(Get-ChildItem -LiteralPath $outputDir -Filter "$outputBase.7z*" -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -match ('^' + [regex]::Escape($outputBase) + '\.7z(\.\d+)?$') } | Sort-Object Name)
+}
+
 # Runs ISCC once and returns its exit code. SpanBuild defines SPAN (Setup.exe + .bin files).
 function Invoke-Iscc([bool]$SpanBuild) {
     # Remove the output of an earlier build, so no stale .bin files are left next to the new Setup.exe
@@ -766,5 +918,49 @@ if ($slices.Count) {
 } else {
     Write-Info ("Size:    {0:N0} bytes ({1:N0} MB below the single-file limit of {2:N0} bytes)" -f $item.Length, (($SetupLimit - $item.Length) / 1e6), $SetupLimit)
     Write-Info ("SHA-256: {0}" -f (Get-Sha256 $setup))
+}
+if ($Package7z) {
+    $levelText = if ($PackageLevel -eq 0) { 'store' } elseif ($PackageLevel -eq 9) { 'ultra' } else { "level $PackageLevel" }
+    Write-Step "Packaging the installer with 7-Zip ($levelText)"
+    $archive = Join-Path $outputDir "$outputBase.7z"
+    # -v writes <name>.7z.001, .002, ...; without it a single <name>.7z. Both are replaced, not added to.
+    foreach ($old in Get-ArchiveFiles) { Remove-WithRetry $old.FullName }
+    $packFiles = @(@($item) + $slices)
+    Write-Info ("Packing {0} file(s), {1:N0} bytes, with -mx={2} ({3})" -f $packFiles.Count, $outputBytes, $PackageLevel, $levelText)
+    if ($PackageLevel -eq 0) {
+        Write-Info 'Inno Setup has already compressed the data, so the files are stored as they are'
+    } else {
+        Write-Info 'Inno Setup has already compressed the data, so expect only a fraction of a percent'
+    }
+    $sevenZipArgs = @('a', '-t7z', "-mx=$PackageLevel")
+    if ($PackageLevel -gt 0) { $sevenZipArgs += @('-m0=lzma2', '-mmt=on') }
+    if ($PackageVolumeSize) {
+        $sevenZipArgs += "-v$PackageVolumeSize"
+        Write-Info "Splitting the archive into $PackageVolumeSize volumes ($outputBase.7z.001, .002, ...)"
+    }
+    $sevenZipArgs += @('-bso0', '-bsp0', '-y', '--', $archive) + @($packFiles | ForEach-Object { $_.FullName })
+    $packStart = Get-Date
+    $ErrorActionPreference = 'Continue'
+    $packLog = & $sevenZip @sevenZipArgs 2>&1 | ForEach-Object { "$_" }
+    $packCode = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    Write-Log (@('    --- 7-Zip output ---') + @($packLog | ForEach-Object { "    | $_" }) + @("    --- exit code $packCode ---"))
+    $written = Get-ArchiveFiles
+    if ($packCode -ne 0 -or -not $written.Count) {
+        $packLog | Select-Object -Last 15 | ForEach-Object { Write-Host "    $_" }
+        Stop-Build "7-Zip failed (exit code $packCode). The installer files in output\ are fine - only the archive is missing."
+    }
+    $packedBytes = [double](($written | Measure-Object Length -Sum).Sum)
+    Complete-Step
+    Write-Host ''
+    Write-Good ("Packed {0} in {1:N1} minutes" -f $(if ($written.Count -gt 1) { "$outputBase.7z into $($written.Count) volumes" } else { $written[0].Name }), ((Get-Date) - $packStart).TotalMinutes)
+    Write-Info ("Size:    {0:N0} bytes ({1:N1}% of the {2:N0} bytes it packs)" -f $packedBytes, ($packedBytes / [double]$outputBytes * 100), $outputBytes)
+    foreach ($f in $written) { Write-Info ("{0}  {1:N0} bytes  SHA-256: {2}" -f $f.Name, $f.Length, (Get-Sha256 $f.FullName)) }
+    if ($written.Count -gt 1) {
+        Write-Info "Players need every volume in one folder and extract $($written[0].Name); the rest follow automatically."
+    } else {
+        Write-Info 'Players extract it and keep all the files together in one folder, then run Setup.exe.'
+    }
+    Write-Info ("They need about {0:N0} MB free to extract it, on top of the download." -f ($outputBytes / 1e6))
 }
 if ($Quick) { Write-Note 'This was a -Quick build without the game files - do not distribute it.' }

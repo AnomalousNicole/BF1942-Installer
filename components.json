@@ -91,6 +91,7 @@
       "id": "vcredist",
       "name": "Visual C++ Redistributable (x86)",
       "version": "latest",
+      "note": "Not pinned: aka.ms/vs/17/release always serves the current 14.4x redistributable, so the download cannot be hash-pinned. build.ps1 verifies its Authenticode signature instead, and the installer reads the version out of the .exe.",
       "author": "Microsoft",
       "homepage": "https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist",
       "required": true,
@@ -160,12 +161,15 @@
       "author": "Microsoft",
       "homepage": "https://dotnet.microsoft.com/download/dotnet/8.0",
       "required": false,
+      "note": "Not pinned: build.ps1 asks Microsoft's .NET 8.0 release feed for the newest 8.0.x patch and verifies the SHA-512 the feed publishes. The url/fileName/sha256 below are only the fallback used when the feed cannot be reached, and \"version\" is then the version shipped.",
       "downloads": [
         {
           "type": "file",
+          "resolve": { "channel": "8.0", "product": "windowsdesktop", "rid": "win-x64" },
           "url": "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/8.0.31/windowsdesktop-runtime-8.0.31-win-x64.exe",
           "fileName": "windowsdesktop-runtime-8.0.31-win-x64.exe",
-          "sha256": "C375DFD80A967405CFEFF634912C1FCCC56261CE3D9209EA473F60A21184D1CC"
+          "sha256": "C375DFD80A967405CFEFF634912C1FCCC56261CE3D9209EA473F60A21184D1CC",
+          "signedBy": "Microsoft Corporation"
         }
       ]
     },
@@ -178,6 +182,19 @@
       "required": false,
       "note": "Stored in components/bobsiren - replaces the Battle of Britain map with a copy that has the air raid siren removed.",
       "downloads": []
+    }
+  ],
+  "tools": [
+    {
+      "id": "7zr",
+      "name": "7-Zip standalone console (7zr.exe)",
+      "version": "26.03",
+      "author": "Igor Pavlov",
+      "homepage": "https://www.7-zip.org/",
+      "note": "Only downloaded when build.ps1 -Package7z runs and 7-Zip is not installed. It packs the finished installer in build\\tools and is never part of your installer.",
+      "url": "https://github.com/ip7z/7zip/releases/download/26.03/7zr.exe",
+      "fileName": "7zr.exe",
+      "sha256": "AD4C82FADCBDF93C03B4FC440F300509C7D60C5C2F4D183E35D9D70D6957037D"
     }
   ],
   "extras": [

@@ -156,7 +156,12 @@ For the people who run your `Setup.exe`:
 
 ## Components
 
-The versions are pinned in [`components.json`](components.json). Each download is checked against its SHA-256.
+The versions are pinned in [`components.json`](components.json), and each download is checked against its SHA-256.
+
+Two Microsoft runtimes are deliberately **not** pinned, so that every build ships the current security update:
+
+- **Visual C++ Redistributable (x86)** comes from `aka.ms/vs/17/release/vc_redist.x86.exe`, which always serves the latest 14.4x release. It cannot be hash-pinned, so `build.ps1` requires a valid Microsoft Authenticode signature, and the installer reads the version out of the `.exe`.
+- **.NET 8 Desktop Runtime** is looked up in Microsoft's [.NET 8.0 release feed](https://builds.dotnet.microsoft.com/dotnet/release-metadata/8.0/releases.json) at build time: the newest 8.0.x patch is downloaded and verified against the SHA-512 that feed publishes, plus the signature. The channel is fixed at `8.0`, so this never moves to another major version. The `url`/`sha256` in `components.json` are only the fallback for when the feed cannot be reached, and the build warns as .NET 8's end-of-support date (2026-11-10) comes closer.
 
 ### Required
 
@@ -167,7 +172,7 @@ The versions are pinned in [`components.json`](components.json). Each download i
 | [dgVoodoo2](https://github.com/dege-diosg/dgVoodoo2) | v2.87.4 | Dege | GitHub release |
 | HRTF: [DSOAL](https://github.com/kcat/dsoal) + [OpenAL Soft](https://github.com/kcat/openal-soft) | OpenAL Soft 1.23.1 | Chris Robinson (kcat) | Included in `components/hrtf` (LGPL) |
 | DirectX End-User Runtime | June 2010 | Microsoft | download.microsoft.com |
-| Visual C++ Redistributable (x86) | latest | Microsoft | aka.ms, with the Microsoft signature verified |
+| Visual C++ Redistributable (x86) | latest (resolved at build time) | Microsoft | aka.ms, with the Microsoft signature verified |
 
 ### Optional (leave out with `exclude`)
 
@@ -177,7 +182,7 @@ The versions are pinned in [`components.json`](components.json). Each download i
 | `borderless1942` | [Borderless1942](https://github.com/LANCommander/Borderless1942) | 1.3.0 | LANCommander |
 | `datafield42` | [DataField42](https://github.com/Ahrkylien/BF1942-DataField42) | v2.1.0 | Ahrkylien |
 | `richpresence` | [Battlefield Rich Presence](https://github.com/community-network/Battlefield-rich-presence) | v1.6.0 | Gametools Network |
-| `dotnet8` | .NET 8 Desktop Runtime (x64), needed by Rich Presence | 8.0.31 | Microsoft |
+| `dotnet8` | .NET 8 Desktop Runtime (x64), needed by Rich Presence | latest 8.0.x (resolved at build time) | Microsoft |
 
 ### Tracked configuration
 
@@ -220,6 +225,9 @@ Put `WizardImage100.bmp` (164×314) in `branding\` to replace the default Welcom
 | `-Force` | Download everything again instead of using `build\cache` |
 | `-Smallest` | Smallest installer: compresses everything as one stream with a 1 GB dictionary. A full build is about 100 MB (5%) smaller, but takes about 16 minutes instead of 2-3 and needs about 12 GB of free RAM. Use it for the builds you publish. |
 | `-Span` | Always split the installer into `Setup.exe` + `.bin` files (done automatically when a single file would be over about 4 GB; see [Very large installers](#very-large-installers)) |
+| `-Package7z` | Pack the finished installer into one `output\<name>.7z` with 7-Zip. Meant for split builds, so players download one file. Uses an installed 7-Zip, or downloads `7zr.exe` into `build\tools`. |
+| `-PackageLevel <0-9>` | 7-Zip compression level for the archive: `0` (store, the default), `1`, `3`, `5`, `7` or `9` (ultra). Implies `-Package7z`. |
+| `-PackageVolumeSize <size>` | Split the archive into volumes of that size (`2g`, `700m`, ...), giving `<name>.7z.001`, `.002`, ... Implies `-Package7z`. |
 | `-NoInnoUpdate` | Don't install or update Inno Setup with winget; use the installed Inno Setup 7 as it is (for example when offline) |
 
 **What gets created** (all git-ignored):
@@ -256,6 +264,30 @@ A single-file `Setup.exe` can be up to 4,200,000,000 bytes (about 4 GB; Inno Set
    └── BF1942_Expansions_Setup-2.bin    # only if needed
    ```
 4. The build summary lists every file with its size and SHA-256, and the total size.
+5. `-Package7z` packs those files into a single `output\BF1942_Expansions_Setup.7z`, so players download one file instead of three:
+
+   ```powershell
+   .\build.ps1 -Span -Package7z                          # one .7z, files stored as they are
+   .\build.ps1 -Span -PackageVolumeSize 2g               # <name>.7z.001, .002, ... of 2 GB each
+   .\build.ps1 -Span -PackageLevel 9                     # compress as well (rarely worth it)
+   ```
+
+   The build uses an installed `7z.exe` if there is one (`PATH`, the 7-Zip folder, or its registry key). If 7-Zip is missing, it downloads the standalone console tool `7zr.exe` (pinned by SHA-256 under `tools` in `components.json`) into `build\tools` - nothing is installed, and the tool never ends up in your installer. The loose `Setup.exe` and `.bin` files stay in `output\` next to the archive, and the summary prints every archive file with its size and SHA-256.
+
+   **Why the default is `-mx=0` (store).** Inno Setup has already LZMA2-compressed everything in the installer, so 7-Zip has almost nothing left to find. Measured on a 1.87 GB release build (16 threads):
+
+   | Level | Time | Saved |
+   |---|---|---|
+   | `-mx=0` (store, default) | 1.6 s | - |
+   | `-mx=9` (ultra) | 69 s | 195,916 bytes (0.01%) |
+
+   The archive is there to give players one download, not to make it smaller. Use `-PackageLevel 9` only if every megabyte counts, and expect it to scale with the build: roughly 6 minutes for a 10 GB installer, to save about a megabyte.
+
+   **Volumes.** `-PackageVolumeSize` writes `<name>.7z.001`, `.002`, ... instead of one file, for hosts that cap the upload size. This is not the same as Inno Setup's `.bin` split: players put all the volumes in one folder and extract `.001`, and 7-Zip pulls in the rest by itself.
+
+   **Disk space.** Packing needs room for the loose files *and* the archive at the same time, so budget about twice the installer size in `output\`. Players need the download plus the same amount again to extract, and then the space the game itself takes - worth putting in your download instructions for a large installer.
+
+   Tell players to extract the archive and keep every file in one folder, then run `Setup.exe`.
 
 Before each compile, the build deletes the `Setup.exe` and `.bin` files of the previous build, so an old `.bin` file is never mixed up with a new `Setup.exe`.
 
@@ -284,7 +316,7 @@ Some antivirus products flag `build.ps1` as malware, move it to quarantine, or l
 
 Each of these is harmless on its own, but together they can push the script over a heuristic threshold. Scanners check a file most closely when it is new or has just changed, so a detection often appears right after cloning, pulling an update, or editing the script. Any change to the file can switch the detection on or off.
 
-**What the script does not do.** It only downloads from the official sources listed in `components.json`, checks every download against its pinned SHA-256 (or a valid Microsoft signature for the unpinned VC++ redistributable), and writes only inside the repository (`build\`, `output\`). The one exception is Inno Setup 7, which it installs or updates with winget (`JRSoftware.InnoSetup.7`) unless you pass `-NoInnoUpdate`. It is plain text, so you can read all of it before you run it.
+**What the script does not do.** It only downloads from the official sources listed in `components.json`, checks every download against its pinned SHA-256 (the unpinned Microsoft runtimes against a valid Microsoft signature and, for .NET, the SHA-512 from Microsoft's release feed), and writes only inside the repository (`build\`, `output\`). The one exception is Inno Setup 7, which it installs or updates with winget (`JRSoftware.InnoSetup.7`) unless you pass `-NoInnoUpdate`. It is plain text, so you can read all of it before you run it.
 
 **If your antivirus flags it:**
 
@@ -317,6 +349,8 @@ The installer you build is a separate file: an unsigned `Setup.exe` can also tri
 1. Edit the component's `version`, `url`, `fileName` and `sha256` in `components.json`.
 2. Run `.\build.ps1 -Quick` to check it, then do a full build and test an install and uninstall.
 
+The Visual C++ redistributable and the .NET 8 Desktop Runtime need no updating - every build already downloads the latest one.
+
 See [CONTRIBUTING.md](CONTRIBUTING.md) for adding new components.
 
 ---
@@ -329,6 +363,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for adding new components.
 | `winget upgrade failed` | The build carries on with the installed Inno Setup 7. The winget output is in `build\build.log`. |
 | `BF1942.exe was not found` | Pass `-GameDir`, set `gameDir` in `config.json`, or copy the game to `game\` |
 | `SHA-256 mismatch` | The file on the download server changed. Check the project's release page before updating `components.json`. |
+| `SHA-512 mismatch` | The .NET runtime did not match the hash in Microsoft's release feed. Delete `build\cache` and try again. |
+| `Could not read the .NET 8.0 release feed` | No connection to `builds.dotnet.microsoft.com`. The build continues with the fallback version pinned in `components.json`. |
 | Antivirus warning about the dgVoodoo2 zip | Some antivirus products flag tools inside the dgVoodoo2 release (a false positive). The build handles that archive in memory and never saves it (`"cache": false`); only `D3D8.dll` is used. |
 | Antivirus quarantines or locks `build.ps1` (for example Bitdefender `Heur.BZC.PZQ.Boxter.*`) | A false positive caused by what the script has to do. See [Antivirus and build.ps1](#antivirus-and-buildps1). |
 | "Access denied" on a file in `build\` | Antivirus is scanning a new file. Run the build again; the script already retries for 30 seconds. |
