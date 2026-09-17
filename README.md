@@ -228,7 +228,8 @@ Put `WizardImage100.bmp` (164×314) in `branding\` to replace the default Welcom
 | `build\cache\` | Downloads (reused between builds) |
 | `build\deps\` | Staged components |
 | `build\generated.iss` | Settings passed to Inno Setup |
-| `build\size-history.json` | Sizes of the last build, used to predict whether the next one fits in a single `Setup.exe` |
+| `builduild.log` | Everything the last build printed, with times, plus the full Inno Setup output (replaced on every run) |
+| `build\size-history.json` | Stats of the last successful build for each build type and compression setting: sizes (used to predict whether the next one fits in a single `Setup.exe`), total time and seconds per step |
 | `build\VulkanCheck.exe` | Helper compiled from `installer\VulkanCheck.cs` |
 | `output\` | Your installer (`Setup.exe`, plus `.bin` files for a split build) |
 
@@ -242,8 +243,8 @@ A single-file `Setup.exe` must stay under 2 GB. A full build with every extra is
 
 1. Before compiling, it decides whether to build a single `Setup.exe` or a split installer:
    - If the files to pack are smaller than the limit, it builds a single `Setup.exe`.
-   - Otherwise it predicts the compressed size from the previous build with the same compression setting (saved in `build\size-history.json`). If the prediction is clearly over the limit (by more than 2%), it builds the split installer straight away, so the installer is only compiled once.
-   - If there is no previous build to predict from, or the prediction is close to the limit, it tries a single `Setup.exe` first.
+   - Otherwise it predicts the compressed size from the previous build with the same compression setting (saved in `build\size-history.json`). On the first build it uses the typical compression ratio in `size-seed.json` instead. If the prediction is clearly over the limit (by more than 2%), it builds the split installer straight away, so the installer is only compiled once.
+   - If neither file has an entry for your compression setting, or the prediction is close to the limit, it tries a single `Setup.exe` first.
 2. If a single `Setup.exe` was tried and Inno Setup reports that the file is too large, or the finished `Setup.exe` is bigger than 2 GB minus a 64 MB safety margin (2,080,374,784 bytes), the build prints a warning and compiles again as a **split installer**.
 3. A split installer is a small `Setup.exe` plus data files named after it, each just under 2 GB:
 

@@ -1,0 +1,10 @@
+{
+  "full|lzma2/ultra64": {
+    "ratio": 0.834,
+    "note": "Retail game + expansions with every extra: about 2,367 MB packed into 1,974 MB"
+  },
+  "quick|lzma2/ultra64": {
+    "ratio": 0.784,
+    "note": "-Quick build (components only): about 342 MB packed into 268 MB"
+  }
+}

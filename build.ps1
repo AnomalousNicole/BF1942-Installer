@@ -52,6 +52,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$buildStart = Get-Date
 $ProgressPreference = 'SilentlyContinue'   # Invoke-WebRequest is very slow with the progress bar on
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
@@ -65,11 +66,49 @@ $Extras   = Join-Path $Root 'extras'
 $MinInno  = [version]'6.4.0'   # ExecAndCaptureOutput and array literals in [Code]
 $MaxSetup = 2GB - 64MB        # Largest single Setup.exe (the limit is 2 GB; keep some headroom)
 
-function Write-Step([string]$Text) { Write-Host "`n==> $Text" -ForegroundColor Cyan }
-function Write-Info([string]$Text) { Write-Host "    $Text" }
-function Write-Good([string]$Text) { Write-Host "    $Text" -ForegroundColor Green }
-function Write-Note([string]$Text) { Write-Host "    WARNING: $Text" -ForegroundColor Yellow }
-function Stop-Build([string]$Text) { Write-Host "`nERROR: $Text" -ForegroundColor Red; exit 1 }
+# Everything the script prints is also written to build\build.log (replaced on every run), with the time of each
+# line. Each write opens and closes the file, so no handle is left open when the script stops early.
+$LogFile  = Join-Path $BuildDir 'build.log'
+$Steps    = [ordered]@{}   # Step name -> seconds, saved with the build stats
+$stepName = $null
+$stepStart = Get-Date
+function Write-Log([string[]]$Lines) {
+    $stamp = (Get-Date).ToString('HH:mm:ss')
+    try { [IO.File]::AppendAllLines($script:LogFile, [string[]]@($Lines | ForEach-Object { "$stamp $_" })) } catch { }
+}
+function Complete-Step {
+    if ($script:stepName) { $script:Steps[$script:stepName] = [math]::Round(((Get-Date) - $script:stepStart).TotalSeconds, 1) }
+    $script:stepName = $null
+}
+function Write-Step([string]$Text) {
+    Complete-Step
+    $script:stepName = $Text -replace '\s*\(.*$', ''
+    $script:stepStart = Get-Date
+    Write-Host "`n==> $Text" -ForegroundColor Cyan
+    Write-Log @('', "==> $Text")
+}
+function Write-Info([string]$Text) { Write-Host "    $Text"; Write-Log "    $Text" }
+function Write-Good([string]$Text) { Write-Host "    $Text" -ForegroundColor Green; Write-Log "    $Text" }
+function Write-Note([string]$Text) { Write-Host "    WARNING: $Text" -ForegroundColor Yellow; Write-Log "    WARNING: $Text" }
+function Stop-Build([string]$Text) {
+    Write-Host "`nERROR: $Text" -ForegroundColor Red
+    Write-Host "       Full log: build\build.log" -ForegroundColor Red
+    Write-Log @('', "ERROR: $Text")
+    exit 1
+}
+
+New-Item -ItemType Directory -Force -Path $BuildDir | Out-Null
+try {
+    $argText = foreach ($a in $PSBoundParameters.GetEnumerator()) {
+        if ($a.Value -is [switch]) { '-' + $a.Key } else { '-{0} "{1}"' -f $a.Key, $a.Value }
+    }
+    $header = @(
+        "BF1942-Installer build - $((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))",
+        "PowerShell $($PSVersionTable.PSVersion) on $([Environment]::OSVersion.VersionString)",
+        "Arguments: $($argText -join ' ')"
+    )
+    [IO.File]::WriteAllLines($LogFile, [string[]]$header)
+} catch { Write-Host "    WARNING: Could not create build\build.log ($($_.Exception.Message))" -ForegroundColor Yellow }
 
 # ---------------------------------------------------------------------------------------------
 # Helpers
@@ -437,6 +476,7 @@ Write-Good 'Done'
 
 if ($DownloadOnly) {
     Write-Host "`nComponents are ready in build\deps. Run .\build.ps1 again without -DownloadOnly to compile." -ForegroundColor Green
+    Write-Log @('', 'Components are ready in build\deps (-DownloadOnly).')
     exit 0
 }
 
@@ -528,6 +568,10 @@ function Invoke-Iscc([bool]$SpanBuild) {
     }
     $code = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
+    $label = "Compile attempt ($(if ($SpanBuild) { 'split' } else { 'single Setup.exe' }))"
+    $seconds = [math]::Round(((Get-Date) - $attempt).TotalSeconds, 1)
+    $script:Steps[$label] = $seconds + [double]$script:Steps[$label]
+    Write-Log (@("    --- $label output ---") + @($script:log | ForEach-Object { "    | $_" }) + @("    --- exit code $code after $seconds s ---"))
     if ($code -eq 0) { Write-Bar 100 'Done' }
     if ($script:barLive) { Write-Host '' }
     $script:barText = ''
@@ -544,22 +588,32 @@ if (Test-Path -LiteralPath $historyFile) {
         foreach ($prop in (Get-Content -LiteralPath $historyFile -Raw | ConvertFrom-Json).PSObject.Properties) { $history[$prop.Name] = $prop.Value }
     } catch { Write-Note 'build\size-history.json is unreadable - ignoring it' }
 }
+# Until this machine has built with these settings, fall back to the typical ratio committed in size-seed.json
+$ratio = $null
+if ($history.ContainsKey($historyKey) -and $history[$historyKey].inputBytes -gt 0) {
+    $ratio = $history[$historyKey].outputBytes / $history[$historyKey].inputBytes
+    $ratioSource = 'the last build with these settings'
+} else {
+    try {
+        $seed = (Get-Content -LiteralPath (Join-Path $Root 'size-seed.json') -Raw -ErrorAction Stop | ConvertFrom-Json).$historyKey
+        if ($seed.ratio -gt 0) { $ratio = [double]$seed.ratio; $ratioSource = 'the typical compression in size-seed.json' }
+    } catch { }
+}
 $split = [bool]$Span
 if ($Span) {
     Write-Info 'Building Setup.exe + .bin files (-Span)'
 } elseif ($totalBytes + 16MB -le $MaxSetup) {
     Write-Info ('{0:N0} MB to pack - fits in a single Setup.exe' -f ($totalBytes / 1MB))
-} elseif ($history.ContainsKey($historyKey) -and $history[$historyKey].inputBytes -gt 0) {
-    $last = $history[$historyKey]
-    $predicted = $totalBytes * $last.outputBytes / $last.inputBytes
-    Write-Info ('{0:N0} MB to pack - predicted installer size {1:N0} MB (from the last build with these settings)' -f ($totalBytes / 1MB), ($predicted / 1MB))
+} elseif ($ratio) {
+    $predicted = $totalBytes * $ratio
+    Write-Info ('{0:N0} MB to pack - predicted installer size {1:N0} MB (from {2})' -f ($totalBytes / 1MB), ($predicted / 1MB), $ratioSource)
     # Only skip the single-file attempt when the prediction is clearly over the limit
     if ($predicted -gt $MaxSetup * 1.02) {
         Write-Note 'That does not fit in a single Setup.exe under 2 GB - building Setup.exe + .bin files'
         $split = $true
     }
 } else {
-    Write-Info ('{0:N0} MB to pack - trying a single Setup.exe (no earlier build to predict the compressed size from)' -f ($totalBytes / 1MB))
+    Write-Info ('{0:N0} MB to pack - trying a single Setup.exe (no earlier build or size-seed.json entry to predict the compressed size from)' -f ($totalBytes / 1MB))
 }
 
 # If a single Setup.exe turns out not to fit under 2 GB, build it again split into .bin files.
@@ -578,13 +632,21 @@ if (-not $split) {
 }
 if ($exitCode -ne 0) {
     $log | Select-Object -Last 25 | ForEach-Object { Write-Host "    $_" }
-    Stop-Build "Inno Setup failed (exit code $exitCode). See the messages above."
+    Stop-Build "Inno Setup failed (exit code $exitCode). See the messages above, or the full Inno Setup output in the log."
 }
 
 $item = Get-Item -LiteralPath $setup
 $slices = Get-SliceFiles
 $outputBytes = $item.Length + [double](($slices | Measure-Object Length -Sum).Sum)
-$history[$historyKey] = [pscustomobject]@{ inputBytes = $totalBytes; outputBytes = $outputBytes; date = (Get-Date).ToString('s') }
+Complete-Step
+$history[$historyKey] = [pscustomobject]@{
+    inputBytes   = $totalBytes
+    outputBytes  = $outputBytes
+    date         = (Get-Date).ToString('s')
+    split        = [bool]$slices.Count
+    totalSeconds = [math]::Round(((Get-Date) - $script:buildStart).TotalSeconds, 1)
+    stepSeconds  = [pscustomobject]$Steps
+}
 try { [pscustomobject]$history | ConvertTo-Json | Set-Content -LiteralPath $historyFile -Encoding UTF8 } catch { Write-Note "Could not save build\size-history.json ($($_.Exception.Message))" }
 Write-Host ''
 Write-Good ("Built {0} in {1:N1} minutes" -f $item.Name, ((Get-Date) - $started).TotalMinutes)
