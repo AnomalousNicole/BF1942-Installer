@@ -25,6 +25,7 @@ cd BF1942-Installer
 - [Optional extras](#optional-extras)
 - [Branding](#branding)
 - [build.ps1 options](#buildps1-options)
+- [Antivirus and build.ps1](#antivirus-and-buildps1)
 - [Distributing your installer](#distributing-your-installer)
 - [Updating components](#updating-components)
 - [Troubleshooting](#troubleshooting)
@@ -230,10 +231,42 @@ Put `WizardImage100.bmp` (164×314) in `branding\` to replace the default Welcom
 
 ---
 
+## Antivirus and build.ps1
+
+Some antivirus products flag `build.ps1` as malware, move it to quarantine, or lock it while you edit it. Bitdefender, for example, has reported it as `Heur.BZC.PZQ.Boxter.*`. This is a **false positive**. `Heur` means a *heuristic* detection: the file does not match any known malware, but it does some of the things malicious PowerShell scripts often do.
+
+**Why the script looks suspicious.** To build the installer, `build.ps1` has to:
+
+| What the script does | Why an antivirus scanner is suspicious of it |
+|---|---|
+| Downloads files with `Net.WebClient` and turns on TLS 1.2 | "Download and run" scripts use the same calls |
+| Writes `.exe` files to disk and runs the DirectX redistributable silently (`/Q`) | Malware droppers save and silently start payloads |
+| Compiles `installer\VulkanCheck.cs` with the `csc.exe` that ships with Windows | Attackers use built-in Windows tools to avoid detection |
+| Reads uninstall keys in the registry, can run `winget install` | Looks like system reconnaissance and software installation |
+| Deletes temporary files with `-Force` and hides the download progress bar | Looks like an attempt to hide activity |
+
+Each of these is harmless on its own, but together they can push the script over a heuristic threshold. Scanners check a file most closely when it is new or has just changed, so a detection often appears right after cloning, pulling an update, or editing the script. Any change to the file can switch the detection on or off.
+
+**What the script does not do.** It only downloads from the official sources listed in `components.json`, checks every download against its pinned SHA-256 (or a valid Microsoft signature for the unpinned VC++ redistributable), and writes only inside the repository (`build\`, `output\`). The one exception is `-InstallInnoSetup`, which installs Inno Setup with winget. It is plain text, so you can read all of it before you run it.
+
+**If your antivirus flags it:**
+
+1. Check that your copy is unchanged: `git status` should not list `build.ps1`. If you downloaded a ZIP instead of cloning, compare the file with the one on GitHub.
+2. Add an exclusion for the repository folder in your antivirus, for example `C:\repos\BF1942-Installer`.
+3. Restore the file with `git checkout -- build.ps1`. This is safer than restoring it from quarantine, because the quarantined copy may contain changes you made yourself.
+4. Optional: report the false positive to your antivirus vendor (for Bitdefender: https://www.bitdefender.com/submit/), so other users are not affected.
+
+Only exclude a copy you got from this repository. If `git status` shows changes you did not make, delete the folder and clone it again.
+
+The installer you build is a separate file: an unsigned `Setup.exe` can also trigger SmartScreen or an antivirus warning on players' PCs. See [Distributing your installer](#distributing-your-installer).
+
+---
+
 ## Distributing your installer
 
 - **Size:** the installer is a single `.exe` that must stay under **2 GB**. A full build with every extra is about 1.97 GB.
 - **SmartScreen:** unsigned installers show *"Windows protected your PC"*. Players click **More info → Run anyway**. Code signing removes this.
+- **Antivirus:** some antivirus products are suspicious of new, unsigned installers, especially large ones that bundle tools such as PunkBuster, DXVK or dgVoodoo2. Publishing the SHA-256 and signing the installer both help. If a player's antivirus blocks it, submit the file to that vendor as a false positive.
 - **Checksum:** publish the SHA-256 that `build.ps1` prints, so players can verify their download.
 - **Licenses:** you are redistributing the bundled components, so read [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) first.
 
@@ -259,6 +292,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for adding new components.
 | `BF1942.exe was not found` | Pass `-GameDir`, set `gameDir` in `config.json`, or copy the game to `game\` |
 | `SHA-256 mismatch` | The file on the download server changed. Check the project's release page before updating `components.json`. |
 | Antivirus warning about the dgVoodoo2 zip | Some antivirus products flag tools inside the dgVoodoo2 release (a false positive). The build handles that archive in memory and never saves it (`"cache": false`); only `D3D8.dll` is used. |
+| Antivirus quarantines or locks `build.ps1` (for example Bitdefender `Heur.BZC.PZQ.Boxter.*`) | A false positive caused by what the script has to do. See [Antivirus and build.ps1](#antivirus-and-buildps1). |
 | "Access denied" on a file in `build\` | Antivirus is scanning a new file. Run the build again; the script already retries for 30 seconds. |
 | Out of memory while compiling | Set `"compression": "lzma2/max"` in `config.json` |
 | Installer over 2 GB | Remove large extras, or `exclude` optional components |

@@ -45,6 +45,8 @@ flowchart LR
 
 Everything that depends on an optional component is wrapped in `#if Has_<id>` in the `.iss`, so a missing or excluded component leaves no trace in the installer.
 
+**Antivirus.** Downloading files, writing and silently running executables, compiling with `csc.exe`, reading the registry and force-deleting temporary files are all normal for this build, but together they match heuristics for malicious PowerShell. Some products (for example Bitdefender, `Heur.BZC.PZQ.Boxter.*`) therefore quarantine `build.ps1`, most often right after it has been created or changed. When you change the script, avoid adding more of these patterns than you need, and keep downloads pinned by SHA-256. See [Antivirus and build.ps1](../README.md#antivirus-and-buildps1) in the README for what users should do.
+
 ---
 
 ## 2. Renderer detection (DXVK vs dgVoodoo2)
