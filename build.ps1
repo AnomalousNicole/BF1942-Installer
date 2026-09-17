@@ -496,6 +496,8 @@ if (-not $Quick) {
     $sources += @(Get-ChildItem -LiteralPath $GameDir -Force | Where-Object { $_.Name -ne 'Tools' } | ForEach-Object { $_.FullName })
 }
 foreach ($f in Get-ChildItem -LiteralPath $sources -Recurse -File -Force -ErrorAction SilentlyContinue) { $sizes[$f.FullName] = $f.Length }
+# The game's own Font.rfa is excluded in the .iss (the font comes from the font option instead)
+$sizes.Remove((Join-Path $GameDir 'Mods\bf1942\Archives\Font.rfa'))
 $totalBytes = [math]::Max([double]1, [double]($sizes.Values | Measure-Object -Sum).Sum)
 
 # The bar is redrawn in place on the line below the step header (Write-Progress would draw at the top of the window)
