@@ -105,6 +105,16 @@ function Write-Step([string]$Text) {
 function Write-Info([string]$Text) { Write-Host "    $Text"; Write-Log "    $Text" }
 function Write-Good([string]$Text) { Write-Host "    $Text" -ForegroundColor Green; Write-Log "    $Text" }
 function Write-Note([string]$Text) { Write-Host "    WARNING: $Text" -ForegroundColor Yellow; Write-Log "    WARNING: $Text" }
+# "BF42++ v2.0 by Casqade" - the name, version and author from components.json, like the components page
+# of the installer. Entries without a version or author (e.g. the fonts) simply leave that part out.
+function Format-Credit($Item) {
+    $text = $Item.name
+    foreach ($pair in @(@('version', ' '), @('author', ' by '))) {
+        $prop = $Item.PSObject.Properties[$pair[0]]
+        if ($prop -and $prop.Value) { $text += $pair[1] + $prop.Value }
+    }
+    return $text
+}
 function Stop-Build([string]$Text) {
     Write-Host "`nERROR: $Text" -ForegroundColor Red
     Write-Host "       Full log: build\build.log" -ForegroundColor Red
@@ -418,7 +428,7 @@ foreach ($c in $manifest.components) {
     if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Recurse -Force }
     if ($exclude -contains $c.id.ToLower()) {
         if ($c.required) { Stop-Build "'$($c.id)' is required and cannot be excluded in config.json." }
-        Write-Info "- $($c.name): excluded in config.json"
+        Write-Info "- $(Format-Credit $c): excluded in config.json"
         continue
     }
     New-Item -ItemType Directory -Path $dest | Out-Null
@@ -453,7 +463,7 @@ foreach ($c in $manifest.components) {
     $included[$c.id] = $c
     $pin = ''
     if (@($c.downloads).Count -gt 0 -and -not (@($c.downloads) | Where-Object { $_.sha256 })) { $pin = ' (not pinned - signature verified)' }
-    Write-Good "+ $($c.name) $($c.version)$pin"
+    Write-Good "+ $(Format-Credit $c)$pin"
 }
 foreach ($c in $included.Values) {
     foreach ($r in @($c.PSObject.Properties['requires'] | ForEach-Object { $_.Value })) {
@@ -468,13 +478,13 @@ Write-Step 'Extras (optional, from the extras\ folder)'
 $extrasFound = @{}
 foreach ($e in $manifest.extras) {
     $path = Join-Path $Extras $e.path
-    if ($exclude -contains $e.id.ToLower()) { Write-Info "- $($e.name): excluded in config.json"; continue }
-    if (-not (Test-Path -LiteralPath $path)) { Write-Info "- $($e.name): not found (extras\$($e.path))"; continue }
+    if ($exclude -contains $e.id.ToLower()) { Write-Info "- $(Format-Credit $e): excluded in config.json"; continue }
+    if (-not (Test-Path -LiteralPath $path)) { Write-Info "- $(Format-Credit $e): not found (extras\$($e.path))"; continue }
     $extrasFound[$e.id] = $e
     if ($e.sha256 -and (Get-Sha256 $path) -ne $e.sha256.ToUpper()) {
-        Write-Note "$($e.name): extras\$($e.path) is not the tested version (SHA-256 differs) - it will still be included"
+        Write-Note "$(Format-Credit $e): extras\$($e.path) is not the tested version (SHA-256 differs) - it will still be included"
     } else {
-        Write-Good "+ $($e.name)"
+        Write-Good "+ $(Format-Credit $e)"
     }
 }
 

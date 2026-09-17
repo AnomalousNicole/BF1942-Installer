@@ -181,14 +181,14 @@
     }
   ],
   "extras": [
-    { "id": "punkbuster42",  "name": "Punkbuster42 (community installer)",    "path": "Punkbuster42\\Punkbuster42.exe", "sha256": "09A51EBFED96717266CDAEA7A42B1E7315AE3A5C59ECF8357E46C7D480037123" },
-    { "id": "compat",        "name": "Battlefield 1942 Compatibility Profile", "path": "CompatProfile\\BF1942.sdb",      "sha256": "086FFB75C54DFC4F7079EA25A6E1EFE09713550C294483D4889B69C34351DE65" },
-    { "id": "hiresui",       "name": "Higher resolution UI 0.1",               "path": "HiResUI\\menu.rfa",              "sha256": "F295BB588F11811F419FA532033B60191B2CC30C06D14F833CA88693B20378DA" },
-    { "id": "font_original", "name": "Font: BF1942 original",                  "path": "Fonts\\Original\\Font.rfa",      "sha256": "D5BF9331E57F17A10235DE013B6F3A7C687C6706093D1E94B9487A3AAF629C17" },
-    { "id": "font_1x",       "name": "Font: 1x",                               "path": "Fonts\\1x\\Font.rfa",            "sha256": "80C9FCA93735E48D4D7905425385D7D106E17AD7716CD7BF5AD64A1DC40B7187" },
-    { "id": "font_2x",       "name": "Font: 2x",                               "path": "Fonts\\2x\\Font.rfa",            "sha256": "17EFFD7B59AF550F372FDD108DE8399E27EF202C8AB518679D5E89CF4BD06F4C" },
-    { "id": "font_3x",       "name": "Font: 3x",                               "path": "Fonts\\3x\\Font.rfa",            "sha256": "25B1F7359B131F6000C1A793496B1B55499C321E57405164BE60434658E78180" },
-    { "id": "font_35x",      "name": "Font: 3.5x",                             "path": "Fonts\\3.5x\\Font.rfa",          "sha256": "D098C9E5705E0E3935B91669C9FB38D8D5D17A2CC51C178F8BE9C9E22CA848DE" },
-    { "id": "font_4x",       "name": "Font: 4x",                               "path": "Fonts\\4x\\Font.rfa",            "sha256": "B20CE1EBC476CC55F03D2906B3CBE42508118A513580524D971A0EAA14E0E1E0" }
+    { "id": "punkbuster42",  "name": "Punkbuster42",                       "author": "the BF1942 community (PunkBuster by Even Balance)", "path": "Punkbuster42\\Punkbuster42.exe", "sha256": "09A51EBFED96717266CDAEA7A42B1E7315AE3A5C59ECF8357E46C7D480037123" },
+    { "id": "compat",        "name": "Battlefield 1942 Compatibility Profile", "author": "the PCGamingWiki community", "path": "CompatProfile\\BF1942.sdb",      "sha256": "086FFB75C54DFC4F7079EA25A6E1EFE09713550C294483D4889B69C34351DE65" },
+    { "id": "hiresui",       "name": "Higher resolution UI 0.1",               "author": "the BF1942 community", "path": "HiResUI\\menu.rfa",              "sha256": "F295BB588F11811F419FA532033B60191B2CC30C06D14F833CA88693B20378DA" },
+    { "id": "font_original", "name": "Font: BF1942 original",                  "author": "the BF1942 community", "path": "Fonts\\Original\\Font.rfa",      "sha256": "D5BF9331E57F17A10235DE013B6F3A7C687C6706093D1E94B9487A3AAF629C17" },
+    { "id": "font_1x",       "name": "Font: 1x",                               "author": "the BF1942 community", "path": "Fonts\\1x\\Font.rfa",            "sha256": "80C9FCA93735E48D4D7905425385D7D106E17AD7716CD7BF5AD64A1DC40B7187" },
+    { "id": "font_2x",       "name": "Font: 2x",                               "author": "the BF1942 community", "path": "Fonts\\2x\\Font.rfa",            "sha256": "17EFFD7B59AF550F372FDD108DE8399E27EF202C8AB518679D5E89CF4BD06F4C" },
+    { "id": "font_3x",       "name": "Font: 3x",                               "author": "the BF1942 community", "path": "Fonts\\3x\\Font.rfa",            "sha256": "25B1F7359B131F6000C1A793496B1B55499C321E57405164BE60434658E78180" },
+    { "id": "font_35x",      "name": "Font: 3.5x",                             "author": "the BF1942 community", "path": "Fonts\\3.5x\\Font.rfa",          "sha256": "D098C9E5705E0E3935B91669C9FB38D8D5D17A2CC51C178F8BE9C9E22CA848DE" },
+    { "id": "font_4x",       "name": "Font: 4x",                               "author": "the BF1942 community", "path": "Fonts\\4x\\Font.rfa",            "sha256": "B20CE1EBC476CC55F03D2906B3CBE42508118A513580524D971A0EAA14E0E1E0" }
   ]
 }

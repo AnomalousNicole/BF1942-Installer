@@ -29,6 +29,7 @@ Only use **official** download locations, such as the project's GitHub releases 
 ## Adding a new component
 
 1. Add an entry to `components.json`, or to `extras` for files with no official download (and commit the file to `extras/`).
+   Fill in `author` (and `version` where there is one) - `build.ps1` prints them as credits while it stages the component.
 2. In `installer/BF1942-Installer.iss`, wrap every line that uses the component in `#if Has_<id>` … `#endif`. That covers `[Components]`, `[Files]`, `[Run]`, `[Registry]`, and the credits page in `InitializeWizard`.
 3. If the component has its own uninstaller, remove it in `CurUninstallStepChanged`.
 
