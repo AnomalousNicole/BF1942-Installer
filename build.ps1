@@ -28,7 +28,8 @@
 
 .PARAMETER Span
     Always split the installer into Setup.exe + .bin data files. Without -Span the build makes a
-    single Setup.exe, and only splits it when that does not fit under 2 GB.
+    single Setup.exe, and only splits it when that does not fit under 2 GB. When the previous build
+    shows that the files will clearly not fit, it builds the split version straight away.
 
 .PARAMETER InstallInnoSetup
     Install Inno Setup 6 with winget if it is not found.
@@ -533,9 +534,37 @@ function Invoke-Iscc([bool]$SpanBuild) {
     return $code
 }
 
-# Build a single Setup.exe first. If it does not fit under 2 GB, build it again split into .bin files.
-$exitCode = Invoke-Iscc ([bool]$Span)
-if (-not $Span) {
+# Decide between a single Setup.exe and a split build before compiling. The compressed size is only known
+# afterwards, so it is predicted from how well the previous build with the same settings compressed.
+$historyFile = Join-Path $BuildDir 'size-history.json'
+$historyKey = "$(if ($Quick) { 'quick' } else { 'full' })|$(Get-Setting 'compression' 'lzma2/ultra64')"
+$history = @{}
+if (Test-Path -LiteralPath $historyFile) {
+    try {
+        foreach ($prop in (Get-Content -LiteralPath $historyFile -Raw | ConvertFrom-Json).PSObject.Properties) { $history[$prop.Name] = $prop.Value }
+    } catch { Write-Note 'build\size-history.json is unreadable - ignoring it' }
+}
+$split = [bool]$Span
+if ($Span) {
+    Write-Info 'Building Setup.exe + .bin files (-Span)'
+} elseif ($totalBytes + 16MB -le $MaxSetup) {
+    Write-Info ('{0:N0} MB to pack - fits in a single Setup.exe' -f ($totalBytes / 1MB))
+} elseif ($history.ContainsKey($historyKey) -and $history[$historyKey].inputBytes -gt 0) {
+    $last = $history[$historyKey]
+    $predicted = $totalBytes * $last.outputBytes / $last.inputBytes
+    Write-Info ('{0:N0} MB to pack - predicted installer size {1:N0} MB (from the last build with these settings)' -f ($totalBytes / 1MB), ($predicted / 1MB))
+    # Only skip the single-file attempt when the prediction is clearly over the limit
+    if ($predicted -gt $MaxSetup * 1.02) {
+        Write-Note 'That does not fit in a single Setup.exe under 2 GB - building Setup.exe + .bin files'
+        $split = $true
+    }
+} else {
+    Write-Info ('{0:N0} MB to pack - trying a single Setup.exe (no earlier build to predict the compressed size from)' -f ($totalBytes / 1MB))
+}
+
+# If a single Setup.exe turns out not to fit under 2 GB, build it again split into .bin files.
+$exitCode = Invoke-Iscc $split
+if (-not $split) {
     $tooLarge = $false
     if ($exitCode -ne 0) {
         $tooLarge = [bool]($log | Where-Object { $_ -match 'too large|2 GB|exceed|DiskSpanning' })
@@ -554,10 +583,13 @@ if ($exitCode -ne 0) {
 
 $item = Get-Item -LiteralPath $setup
 $slices = Get-SliceFiles
+$outputBytes = $item.Length + [double](($slices | Measure-Object Length -Sum).Sum)
+$history[$historyKey] = [pscustomobject]@{ inputBytes = $totalBytes; outputBytes = $outputBytes; date = (Get-Date).ToString('s') }
+try { [pscustomobject]$history | ConvertTo-Json | Set-Content -LiteralPath $historyFile -Encoding UTF8 } catch { Write-Note "Could not save build\size-history.json ($($_.Exception.Message))" }
 Write-Host ''
 Write-Good ("Built {0} in {1:N1} minutes" -f $item.Name, ((Get-Date) - $started).TotalMinutes)
 if ($slices.Count) {
-    $total = $item.Length + ($slices | Measure-Object Length -Sum).Sum
+    $total = $outputBytes
     Write-Info ("Split into {0} + {1} .bin file(s), {2:N0} bytes in total. Players need all of them in the same folder." -f $item.Name, $slices.Count, $total)
     foreach ($f in @($item) + $slices) {
         Write-Info ("{0}  {1:N0} bytes  SHA-256: {2}" -f $f.Name, $f.Length, (Get-Sha256 $f.FullName))

@@ -218,7 +218,7 @@ Put `WizardImage100.bmp` (164×314) in `branding\` to replace the default Welcom
 | `-Quick` | Compile without the game files. A fast check of the script and components. **Don't distribute the result.** |
 | `-DownloadOnly` | Download and stage the components, then stop |
 | `-Force` | Download everything again instead of using `build\cache` |
-| `-Span` | Always split the installer into `Setup.exe` + `.bin` files (done automatically when a single file would be over 2 GB) |
+| `-Span` | Always split the installer into `Setup.exe` + `.bin` files (done automatically when a single file would be over 2 GB; see [Installers larger than 2 GB](#installers-larger-than-2-gb)) |
 | `-InstallInnoSetup` | Install Inno Setup with winget if it is missing |
 
 **What gets created** (all git-ignored):
@@ -228,6 +228,7 @@ Put `WizardImage100.bmp` (164×314) in `branding\` to replace the default Welcom
 | `build\cache\` | Downloads (reused between builds) |
 | `build\deps\` | Staged components |
 | `build\generated.iss` | Settings passed to Inno Setup |
+| `build\size-history.json` | Sizes of the last build, used to predict whether the next one fits in a single `Setup.exe` |
 | `build\VulkanCheck.exe` | Helper compiled from `installer\VulkanCheck.cs` |
 | `output\` | Your installer (`Setup.exe`, plus `.bin` files for a split build) |
 
@@ -239,8 +240,11 @@ A single-file `Setup.exe` must stay under 2 GB. A full build with every extra is
 
 **What `build.ps1` does:**
 
-1. It always builds a single `Setup.exe` first.
-2. If Inno Setup reports that the file is too large, or the finished `Setup.exe` is bigger than 2 GB minus a 64 MB safety margin (2,080,374,784 bytes), the build prints a warning and compiles again as a **split installer**.
+1. Before compiling, it decides whether to build a single `Setup.exe` or a split installer:
+   - If the files to pack are smaller than the limit, it builds a single `Setup.exe`.
+   - Otherwise it predicts the compressed size from the previous build with the same compression setting (saved in `build\size-history.json`). If the prediction is clearly over the limit (by more than 2%), it builds the split installer straight away, so the installer is only compiled once.
+   - If there is no previous build to predict from, or the prediction is close to the limit, it tries a single `Setup.exe` first.
+2. If a single `Setup.exe` was tried and Inno Setup reports that the file is too large, or the finished `Setup.exe` is bigger than 2 GB minus a 64 MB safety margin (2,080,374,784 bytes), the build prints a warning and compiles again as a **split installer**.
 3. A split installer is a small `Setup.exe` plus data files named after it, each just under 2 GB:
 
    ```
@@ -255,7 +259,7 @@ Before each compile, the build deletes the `Setup.exe` and `.bin` files of the p
 
 **Good to know:**
 
-- **Build time:** when the automatic split happens, the installer is compiled twice. Use `-Span` to skip the single-file attempt and build the split installer straight away.
+- **Build time:** the installer is compiled twice only when a single `Setup.exe` was tried and did not fit, which mostly happens on the first build or when your files grow. Use `-Span` to always build the split installer straight away.
 - **Sharing:** give players **all** the files and tell them to keep them in the same folder. Setup reads the `.bin` files from the folder `Setup.exe` is in; if one is missing, it asks the player where to find it. A ZIP of all the files is the easiest way to keep them together.
 - **Checksums:** publish the SHA-256 of every file, not only of `Setup.exe`.
 - **Keeping a single file:** leave out large extras, or `exclude` optional components in `config.json`, until the build fits again.
