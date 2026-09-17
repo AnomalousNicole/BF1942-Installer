@@ -28,11 +28,19 @@
 
 .PARAMETER Span
     Always split the installer into Setup.exe + .bin data files. Without -Span the build makes a
-    single Setup.exe, and only splits it when that does not fit under 2 GB. When the previous build
-    shows that the files will clearly not fit, it builds the split version straight away.
+    single Setup.exe, and only splits it when that does not fit under Inno Setup's single-file limit
+    (4,200,000,000 bytes). When the previous build shows that the files will clearly not fit, it
+    builds the split version straight away.
 
-.PARAMETER InstallInnoSetup
-    Install Inno Setup 6 with winget if it is not found.
+.PARAMETER Smallest
+    Compress everything as one stream with a 1 GB dictionary (needs an lzma or lzma2 "compression"
+    setting). A full build is about 100 MB (5%) smaller, but takes about 16 minutes instead of 2-3 and
+    needs about 12 GB of free RAM. Use it for release builds.
+
+.PARAMETER NoInnoUpdate
+    Do not install or update Inno Setup 7 with winget - use the installed version as it is.
+    Without this switch, every build installs Inno Setup 7 if it is missing and updates it to the
+    latest 7.x release.
 
 .EXAMPLE
     .\build.ps1 -GameDir "C:\EA Games\Battlefield 1942"
@@ -48,7 +56,8 @@ param(
     [switch]$Quick,
     [switch]$Force,
     [switch]$Span,
-    [switch]$InstallInnoSetup
+    [switch]$Smallest,
+    [switch]$NoInnoUpdate
 )
 
 $ErrorActionPreference = 'Stop'
@@ -63,8 +72,14 @@ $BuildDir = Join-Path $Root 'build'
 $CacheDir = Join-Path $BuildDir 'cache'
 $DepsDir  = Join-Path $BuildDir 'deps'
 $Extras   = Join-Path $Root 'extras'
-$MinInno  = [version]'6.4.0'   # ExecAndCaptureOutput and array literals in [Code]
-$MaxSetup = 2GB - 64MB        # Largest single Setup.exe (the limit is 2 GB; keep some headroom)
+# Builds always use the latest Inno Setup 7.x (installed/updated with winget). winget lists each major
+# version as its own package, so moving to Inno Setup 8 means changing these lines (and the check in the .iss).
+$InnoMajor    = 7
+$InnoWingetId = 'JRSoftware.InnoSetup.7'
+$MinInno      = [version]'7.0.0'
+# Largest single Setup.exe. Inno Setup 6.5.2+ allows up to 4,200,000,000 bytes without disk spanning; keep some headroom.
+$SetupLimit = 4200000000
+$MaxSetup   = $SetupLimit - 64MB
 
 # Everything the script prints is also written to build\build.log (replaced on every run), with the time of each
 # line. Each write opens and closes the file, so no handle is left open when the script stops early.
@@ -137,6 +152,32 @@ function Get-Sha256([string]$Path) {
 function Get-BytesSha256([byte[]]$Bytes) {
     $sha = [Security.Cryptography.SHA256]::Create()
     try { return ([BitConverter]::ToString($sha.ComputeHash($Bytes))).Replace('-', '') } finally { $sha.Dispose() }
+}
+
+# Deletes a file, retrying while an antivirus scanner or Explorer still holds it open (the finished
+# installer is often still being scanned when the next build starts)
+function Remove-WithRetry([string]$Path) {
+    for ($i = 1; $i -le 10; $i++) {
+        if (-not (Test-Path -LiteralPath $Path)) { return }
+        try { Remove-Item -LiteralPath $Path -Force -ErrorAction Stop; return } catch { }
+        if ($i -eq 1) { Write-Info "Waiting for $(Split-Path $Path -Leaf) to be released (antivirus scan?)..." }
+        Start-Sleep -Seconds 1
+    }
+    # Still locked: a scanner can keep an installer open for a long time but still allow a rename,
+    # so move it out of the way and delete it later (at the start of this or the next build).
+    $aside = "$Path.old-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+    try { Rename-Item -LiteralPath $Path -NewName (Split-Path $aside -Leaf) -Force -ErrorAction Stop } catch {
+        Stop-Build "Could not replace $Path - close anything using it (antivirus scan, Explorer preview) and run the build again."
+    }
+    Write-Note "$(Split-Path $Path -Leaf) was still locked - renamed the old file to $(Split-Path $aside -Leaf); it is deleted once it is released"
+    try { Remove-Item -LiteralPath $aside -Force -ErrorAction Stop } catch { }
+}
+
+# Deletes leftovers of an earlier build that were still locked back then
+function Clear-OldOutput([string]$Dir) {
+    foreach ($f in Get-ChildItem -LiteralPath $Dir -Filter '*.old-*' -File -ErrorAction SilentlyContinue) {
+        try { Remove-Item -LiteralPath $f.FullName -Force -ErrorAction Stop } catch { }
+    }
 }
 
 # Reads a file, retrying while an antivirus scanner still holds it open
@@ -229,23 +270,62 @@ function Expand-DirectXSfx([byte[]]$Bytes, [string]$Name, [string]$Dest) {
     } finally { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue }
 }
 
+# Uninstall keys of the Inno Setup major version this build uses (per-user and per-machine installs)
+function Get-InnoKeys {
+    $name = "Inno Setup $($script:InnoMajor)_is1"
+    return @("HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$name",
+             "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$name",
+             "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\$name")
+}
+
+# Installed version from Apps & features (ISCC.exe has no version resource), or $null
+function Get-InnoVersion {
+    foreach ($key in Get-InnoKeys) {
+        if (Test-Path $key) {
+            $dv = (Get-ItemProperty $key).PSObject.Properties['DisplayVersion']
+            if ($dv -and $dv.Value) { try { return [version]$dv.Value } catch { } }
+        }
+    }
+    return $null
+}
+
+# ISCC.exe of the right major version. One found on PATH is only used when its banner shows that version.
 function Find-Iscc {
     $candidates = New-Object System.Collections.Generic.List[string]
-    $cmd = Get-Command ISCC.exe -ErrorAction SilentlyContinue
-    if ($cmd) { $candidates.Add($cmd.Source) }
-    foreach ($key in 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1',
-                     'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1',
-                     'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1') {
+    foreach ($key in Get-InnoKeys) {
         if (Test-Path $key) {
             $loc = (Get-ItemProperty $key).PSObject.Properties['InstallLocation']
             if ($loc -and $loc.Value) { $candidates.Add((Join-Path $loc.Value 'ISCC.exe')) }
         }
     }
-    $candidates.Add((Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6\ISCC.exe'))
-    if (${env:ProgramFiles(x86)}) { $candidates.Add((Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe')) }
-    $candidates.Add((Join-Path $env:ProgramFiles 'Inno Setup 6\ISCC.exe'))
+    $folder = "Inno Setup $($script:InnoMajor)\ISCC.exe"
+    $candidates.Add((Join-Path $env:LOCALAPPDATA "Programs\$folder"))
+    $candidates.Add((Join-Path $env:ProgramFiles $folder))
+    if (${env:ProgramFiles(x86)}) { $candidates.Add((Join-Path ${env:ProgramFiles(x86)} $folder)) }
     foreach ($c in $candidates) { if ($c -and (Test-Path -LiteralPath $c)) { return $c } }
+    $cmd = Get-Command ISCC.exe -ErrorAction SilentlyContinue
+    if ($cmd -and ((& $cmd.Source '/?' 2>&1 | Select-Object -First 1) -match "Inno Setup $($script:InnoMajor) ")) { return $cmd.Source }
     return $null
+}
+
+# Installs Inno Setup with winget, or updates it to the latest release of the same major version.
+# Returns $false when winget is missing or fails; the build then uses whatever is installed.
+function Update-InnoSetup([bool]$Installed) {
+    if (-not (Get-Command winget.exe -ErrorAction SilentlyContinue)) {
+        Write-Note 'winget was not found - cannot install or update Inno Setup automatically'
+        return $false
+    }
+    $verb = if ($Installed) { 'upgrade' } else { 'install' }
+    Write-Info "$(if ($Installed) { 'Checking for an Inno Setup update' } else { 'Installing Inno Setup' }) with winget ($InnoWingetId)..."
+    $ErrorActionPreference = 'Continue'
+    $out = & winget $verb --id $InnoWingetId --exact --accept-package-agreements --accept-source-agreements --disable-interactivity 2>&1
+    $code = $LASTEXITCODE
+    $ErrorActionPreference = 'Stop'
+    Write-Log (@("    --- winget $verb output ---") + @($out | ForEach-Object { "    | $_" }) + @("    --- exit code $code ---"))
+    # 0x8A15002B: no newer version available. 0x8A15002C: no applicable upgrade (e.g. a pinned package).
+    if ($code -eq 0 -or $code -eq -1978335189 -or $code -eq -1978335188) { return $true }
+    Write-Note "winget $verb failed (exit code $code) - see build\build.log"
+    return $false
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -298,28 +378,23 @@ if ($hasGame) {
 # ---------------------------------------------------------------------------------------------
 Write-Step 'Inno Setup'
 $iscc = Find-Iscc
-if (-not $iscc -and $InstallInnoSetup) {
-    Write-Info 'Installing Inno Setup 6 with winget...'
-    winget install --id JRSoftware.InnoSetup --exact --accept-package-agreements --accept-source-agreements
-    $iscc = Find-Iscc
+$before = Get-InnoVersion
+if (-not $NoInnoUpdate -and -not ($DownloadOnly -and -not $iscc)) {
+    if (Update-InnoSetup ([bool]$iscc)) {
+        $iscc = Find-Iscc
+        $after = Get-InnoVersion
+        if ($after -and $before -and $after -ne $before) { Write-Good "Updated Inno Setup $before to $after" }
+        elseif ($after -and -not $before) { Write-Good "Installed Inno Setup $after" }
+    }
 }
 if (-not $iscc -and -not $DownloadOnly) {
-    Stop-Build "Inno Setup 6 was not found. Install it with:`n         winget install JRSoftware.InnoSetup`n       or run .\build.ps1 -InstallInnoSetup, or download it from https://jrsoftware.org/isdl.php"
+    Stop-Build "Inno Setup $InnoMajor was not found. Install it with:`n         winget install --id $InnoWingetId --exact`n       or download it from https://jrsoftware.org/isdl.php"
 }
 if ($iscc) {
-    # ISCC.exe has no version resource - read the installed version from Apps & features when available
-    # (the Inno Setup script also refuses to compile on versions older than 6.4)
-    $innoVersion = $null
-    foreach ($key in 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1',
-                     'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1',
-                     'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Inno Setup 6_is1') {
-        if (-not $innoVersion -and (Test-Path $key)) {
-            $dv = (Get-ItemProperty $key).PSObject.Properties['DisplayVersion']
-            if ($dv -and $dv.Value) { try { $innoVersion = [version]$dv.Value } catch { } }
-        }
-    }
+    # (the Inno Setup script also refuses to compile on versions older than 7.0)
+    $innoVersion = Get-InnoVersion
     if ($innoVersion -and $innoVersion -lt $MinInno) { Stop-Build "Inno Setup $innoVersion is too old - version $MinInno or newer is required." }
-    Write-Info "Found Inno Setup $(if ($innoVersion) { $innoVersion } else { '6' }) ($iscc)"
+    Write-Info "Using Inno Setup $(if ($innoVersion) { $innoVersion } else { $InnoMajor }) ($iscc)"
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -427,6 +502,7 @@ $serverAddress = "$(Get-Setting 'serverAddress' '')".Trim()
 $serverName = ConvertTo-IssText (Get-Setting 'serverShortcutName' 'Battlefield 1942 - Join Server')
 $serverName = ($serverName -replace '[\\/:*?"<>|]', '').Trim()
 $outputDir = Join-Path $Root 'output'
+Clear-OldOutput $outputDir
 
 $lines = New-Object System.Collections.Generic.List[string]
 $lines.Add('; Generated by build.ps1 - do not edit. Change config.json / components.json instead.')
@@ -449,7 +525,24 @@ Add-Define 'DefaultDir'      (ConvertTo-IssText (Get-Setting 'defaultInstallDir'
 Add-Define 'AppendEAGames'   ([bool](Get-Setting 'appendEAGamesFolder' $true))
 Add-Define 'GenerateSerial'  ([bool](Get-Setting 'generateSerial' $true))
 Add-Define 'StateKey'        (ConvertTo-IssText (Get-Setting 'registryStateKey' 'SOFTWARE\BF1942 Installer'))
-Add-Define 'Compression'     (Get-Setting 'compression' 'lzma2/ultra64')
+$compression = Get-Setting 'compression' 'lzma2/ultra64'
+Add-Define 'Compression'     $compression
+# LZMA2 compresses 256 MB blocks in parallel; each block thread uses 2 CPU threads and about 1.3 GB of RAM.
+# -Smallest compresses one stream with a 1 GB dictionary instead (the most a 32-bit Setup supports).
+$freeGB = [math]::Floor((Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory * 1KB / 1GB)
+if ($Smallest -and $compression -notmatch '^lzma') { Stop-Build "-Smallest needs an lzma or lzma2 compression setting (config.json has ""$compression"")." }
+if ($Smallest) {
+    $lzmaThreads = 1
+    $lzmaDict = 1048576
+    $compressionInfo = 'one stream with a 1 GB dictionary (-Smallest, about 16 minutes for a full build)'
+    if ($freeGB -lt 12) { Write-Note "-Smallest needs about 12 GB of free RAM ($freeGB GB free) - the build may run out of memory" }
+} else {
+    $lzmaThreads = [int][math]::Max(1, [math]::Min([math]::Min([Environment]::ProcessorCount, [math]::Floor($freeGB / 1.5)), 32))
+    $lzmaDict = 0
+    $compressionInfo = "$lzmaThreads parallel blocks ($([Environment]::ProcessorCount) CPU threads, $freeGB GB RAM free)"
+}
+Add-Define 'LzmaThreads'     $lzmaThreads
+Add-Define 'LzmaDict'        $lzmaDict
 Add-Define 'ServerAddress'   $serverAddress
 Add-Define 'ServerName'      $serverName
 $icon = Join-Path $GameDir 'bf1942.ico'
@@ -484,6 +577,7 @@ if ($DownloadOnly) {
 # 7. Compile
 # ---------------------------------------------------------------------------------------------
 Write-Step 'Compiling the installer (this takes a few minutes for a full build)'
+Write-Info "Compression: $compression, $compressionInfo"
 $outputBase = (Get-Setting 'outputBaseFilename' 'BF1942_Expansions_Setup') -replace '[\\/:*?"<>|]', '_'
 $setup = Join-Path $outputDir "$outputBase.exe"
 $started = Get-Date
@@ -529,8 +623,8 @@ function Get-SliceFiles {
 # Runs ISCC once and returns its exit code. SpanBuild defines SPAN (Setup.exe + .bin files).
 function Invoke-Iscc([bool]$SpanBuild) {
     # Remove the output of an earlier build, so no stale .bin files are left next to the new Setup.exe
-    if (Test-Path -LiteralPath $setup) { Remove-Item -LiteralPath $setup -Force }
-    foreach ($old in Get-SliceFiles) { Remove-Item -LiteralPath $old.FullName -Force }
+    Remove-WithRetry $setup
+    foreach ($old in Get-SliceFiles) { Remove-WithRetry $old.FullName }
     $isccArgs = @()
     if ($Quick) { $isccArgs += '/DQUICK' }
     if ($SpanBuild) { $isccArgs += '/DSPAN' }
@@ -549,7 +643,8 @@ function Invoke-Iscc([bool]$SpanBuild) {
         $script:log.Add($line)
         if ($line -match '^\s*Compressing: (.+?)(\s{3}\(.*\))?$') {
             $doneBytes += $lastBytes
-            $file = $Matches[1]
+            # Inno Setup 7 prints extended-length paths (\\?\C:\..., \\?\UNC\server\share\...)
+            $file = $Matches[1] -replace '^\\\\\?\\UNC\\', '\\' -replace '^\\\\\?\\', ''
             $lastBytes = $sizes[$file]
             if (-not $lastBytes) { $lastBytes = 0 }
             if (((Get-Date) - $lastDraw).TotalMilliseconds -ge 250) {
@@ -583,7 +678,7 @@ function Invoke-Iscc([bool]$SpanBuild) {
 # Decide between a single Setup.exe and a split build before compiling. The compressed size is only known
 # afterwards, so it is predicted from how well the previous build with the same settings compressed.
 $historyFile = Join-Path $BuildDir 'size-history.json'
-$historyKey = "$(if ($Quick) { 'quick' } else { 'full' })|$(Get-Setting 'compression' 'lzma2/ultra64')"
+$historyKey = "$(if ($Quick) { 'quick' } else { 'full' })|$compression$(if ($Smallest) { '|smallest' })"
 $history = @{}
 if (Test-Path -LiteralPath $historyFile) {
     try {
@@ -611,24 +706,24 @@ if ($Span) {
     Write-Info ('{0:N0} MB to pack - predicted installer size {1:N0} MB (from {2})' -f ($totalBytes / 1MB), ($predicted / 1MB), $ratioSource)
     # Only skip the single-file attempt when the prediction is clearly over the limit
     if ($predicted -gt $MaxSetup * 1.02) {
-        Write-Note 'That does not fit in a single Setup.exe under 2 GB - building Setup.exe + .bin files'
+        Write-Note 'That does not fit in a single Setup.exe - building Setup.exe + .bin files'
         $split = $true
     }
 } else {
     Write-Info ('{0:N0} MB to pack - trying a single Setup.exe (no earlier build or size-seed.json entry to predict the compressed size from)' -f ($totalBytes / 1MB))
 }
 
-# If a single Setup.exe turns out not to fit under 2 GB, build it again split into .bin files.
+# If a single Setup.exe turns out not to fit, build it again split into .bin files.
 $exitCode = Invoke-Iscc $split
 if (-not $split) {
     $tooLarge = $false
     if ($exitCode -ne 0) {
-        $tooLarge = [bool]($log | Where-Object { $_ -match 'too large|2 GB|exceed|DiskSpanning' })
+        $tooLarge = [bool]($log | Where-Object { $_ -match 'too large|exceed|DiskSpanning' })
     } elseif ((Get-Item -LiteralPath $setup).Length -gt $MaxSetup) {
         $tooLarge = $true
     }
     if ($tooLarge) {
-        Write-Note 'The installer does not fit in a single Setup.exe under 2 GB - building it again as Setup.exe + .bin files'
+        Write-Note 'The installer does not fit in a single Setup.exe - building it again as Setup.exe + .bin files'
         $exitCode = Invoke-Iscc $true
     }
 }
@@ -659,7 +754,7 @@ if ($slices.Count) {
         Write-Info ("{0}  {1:N0} bytes  SHA-256: {2}" -f $f.Name, $f.Length, (Get-Sha256 $f.FullName))
     }
 } else {
-    Write-Info ("Size:    {0:N0} bytes ({1:N0} MB below the 2 GB single-file limit)" -f $item.Length, ((2147483648 - $item.Length) / 1MB))
+    Write-Info ("Size:    {0:N0} bytes ({1:N0} MB below the single-file limit of {2:N0} bytes)" -f $item.Length, (($SetupLimit - $item.Length) / 1e6), $SetupLimit)
     Write-Info ("SHA-256: {0}" -f (Get-Sha256 $setup))
 }
 if ($Quick) { Write-Note 'This was a -Quick build without the game files - do not distribute it.' }

@@ -21,7 +21,7 @@ flowchart LR
 ```
 
 1. **Config.** `config.json` is created from `config.example.json` on the first build. An empty or invalid `appId` is replaced with a new GUID, which is saved back to the file.
-2. **Inno Setup.** The script finds ISCC on `PATH`, through the Inno Setup uninstall key (HKCU or HKLM), or in the default install folders. The `.iss` itself refuses to compile on versions older than 6.4, because `ExecAndCaptureOutput` and array literals are used in `[Code]`.
+2. **Inno Setup.** Builds use the latest Inno Setup 7.x. Unless `-NoInnoUpdate` is passed, the script runs `winget install` (if Inno Setup 7 is missing) or `winget upgrade` for `JRSoftware.InnoSetup.7`. winget lists each major version as a separate package, so this never moves to a new major version by itself. "No update available" is not an error, and a failed update only prints a warning (the winget output goes to `build\build.log`). The script then finds ISCC through the `Inno Setup 7` uninstall key (HKCU or HKLM), in the default install folders, or on `PATH` (only if its banner says Inno Setup 7). The `.iss` itself refuses to compile on versions older than 7.0. Moving to a new major version means changing `$InnoMajor`, `$InnoWingetId` and `$MinInno` in `build.ps1` and the version check at the top of the `.iss`.
 3. **Components.** Each entry in `components.json` is downloaded to `build\cache`. Pinned files are checked against their SHA-256. Unpinned files, such as the latest VC++ redistributable, must carry a valid Authenticode signature from the named signer. Each file is then staged into `build\deps\<id>`:
 
    | Type | Handling |
@@ -41,7 +41,10 @@ flowchart LR
    - `File_<id>`
 
    Text values are sanitised: quotes become typographic quotes so they are safe inside ISPP and Pascal strings.
-7. **Compile.** `ISCC /Q installer\BF1942-Installer.iss`, with `/DQUICK` when `-Quick` is used (no game files). The script then prints the size and SHA-256 of the result.
+7. **Compile.** `ISCC installer\BF1942-Installer.iss`, with `/DQUICK` when `-Quick` is used (no game files). LZMA2 compresses the data in 256 MB blocks, one block thread per CPU thread as long as there is about 1.5 GB of free RAM for each (`LzmaThreads` in `generated.iss`). `-Smallest` instead compresses one stream with a 1 GB dictionary (`LzmaDict`), the largest a 32-bit Setup supports: about 5% smaller and 6-7 times slower. Measured with Inno Setup 7.1 on a 16-thread PC and 2,367 MB of game data plus extras: 4 threads took 231 s, 16 threads 136 s (identical output), and `-Smallest` 954 s (1,974 MB down to 1,871 MB). Dictionaries of 256 MB and 512 MB in a single stream saved only 7 MB and 62 MB.
+
+   Before compiling, the script decides between a single `Setup.exe` (up to 4,200,000,000 bytes) and a split build (`/DSPAN`, `DiskSpanning=yes`, `.bin` slices of 2,100,000,000 bytes). It predicts the compressed size from `build\size-history.json` or `size-seed.json` and compiles a second time only when a single file turns out not to fit. The progress bar follows the `Compressing:` lines of ISCC, whose paths Inno Setup 7 prints in extended-length form (`\\?\C:\...`); the script strips that prefix before looking up each file's size. The script then prints the size and SHA-256 of the result.
+8. **Log and stats.** Everything the script prints, the winget output and the full ISCC output of each compile attempt go to `build\build.log` (replaced on every run). After a successful build, `build\size-history.json` records the input and output size, whether the build was split, and the seconds per step.
 
 Everything that depends on an optional component is wrapped in `#if Has_<id>` in the `.iss`, so a missing or excluded component leaves no trace in the installer.
 
@@ -106,7 +109,7 @@ When Borderless1942 is chosen, `VideoDefault.con` also gets `renderer.setFullScr
 
 ### Install folder
 
-With `appendEAGamesFolder`, the chosen folder is normalised to `…\EA Games\Battlefield 1942`. For example, `D:\Games` becomes `D:\Games\EA Games\Battlefield 1942`.
+With `appendEAGamesFolder`, the chosen folder is normalised to `…\EA Games\Battlefield 1942`. For example, `D:\Games` becomes `D:\Games\EA Games\Battlefield 1942`. The folder box shows the full path straight away: after **Browse...** (the picked folder is treated as the parent), when the user leaves the box after typing, and again on **Next**. While the user types, a *"Will install to: …"* line under the box shows where the game will really end up, so the rule is never a surprise. A path that already ends in `EA Games` or `Battlefield 1942` is completed rather than doubled.
 
 ---
 

@@ -3,6 +3,10 @@
     "ratio": 0.834,
     "note": "Retail game + expansions with every extra: about 2,367 MB packed into 1,974 MB"
   },
+  "full|lzma2/ultra64|smallest": {
+    "ratio": 0.790,
+    "note": "Same files with -Smallest (one stream, 1 GB dictionary): packed into 1,871 MB"
+  },
   "quick|lzma2/ultra64": {
     "ratio": 0.784,
     "note": "-Quick build (components only): about 342 MB packed into 268 MB"

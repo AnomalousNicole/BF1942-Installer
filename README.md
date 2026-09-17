@@ -2,7 +2,7 @@
 
 Build your own Windows installer for **Battlefield 1942**, **The Road to Rome** and **Secret Weapons of WWII**. It bundles the best community fixes and sets the game up to run on Windows 10 and 11.
 
-You bring the game files. One command downloads every fix from its official source, checks it, and produces a `Setup.exe` you can hand to players. It is a single file unless the build is too big for one; see [Installers larger than 2 GB](#installers-larger-than-2-gb).
+You bring the game files. One command downloads every fix from its official source, checks it, and produces a `Setup.exe` you can hand to players. It is a single file unless the build is too big for one; see [Very large installers](#very-large-installers).
 
 ```powershell
 git clone https://github.com/AnomalousNicole/BF1942-Installer.git
@@ -25,7 +25,7 @@ cd BF1942-Installer
 - [Optional extras](#optional-extras)
 - [Branding](#branding)
 - [build.ps1 options](#buildps1-options)
-- [Installers larger than 2 GB](#installers-larger-than-2-gb)
+- [Very large installers](#very-large-installers)
 - [Antivirus and build.ps1](#antivirus-and-buildps1)
 - [Distributing your installer](#distributing-your-installer)
 - [Updating components](#updating-components)
@@ -74,10 +74,10 @@ For the people who run your `Setup.exe`:
 | To build | |
 |---|---|
 | Windows 10 or 11 | PowerShell 5.1 (built in) or PowerShell 7 |
-| [Inno Setup 6.4+](https://jrsoftware.org/isinfo.php) | `winget install JRSoftware.InnoSetup`, or run `.\build.ps1 -InstallInnoSetup` |
+| [Inno Setup 7](https://jrsoftware.org/isinfo.php) | Installed and kept on the latest 7.x release by `build.ps1` (needs [winget](https://learn.microsoft.com/windows/package-manager/winget/), built into Windows 10 and 11) |
 | Battlefield 1942 game folder | With `Mods\xpack1` (The Road to Rome) and `Mods\xpack2` (Secret Weapons of WWII) |
 | ~6 GB free disk space | Downloads, staging and output |
-| ~8 GB RAM | For the default `lzma2/ultra64` compression. Use `lzma2/max` on smaller machines |
+| ~4 GB free RAM | The build uses about 1.5 GB per compression thread and picks the thread count to fit. `-Smallest` needs about 12 GB |
 | Internet connection | Components are downloaded on the first build and cached |
 
 | To install (your players) |
@@ -90,9 +90,9 @@ For the people who run your `Setup.exe`:
 
 ## Quick start
 
-1. **Install Inno Setup 6.4 or newer:**
+1. **Inno Setup 7:** nothing to do. `build.ps1` installs it with winget if it is missing, and updates it to the latest 7.x release on every build. To install it yourself:
    ```powershell
-   winget install JRSoftware.InnoSetup
+   winget install --id JRSoftware.InnoSetup.7 --exact
    ```
 2. **Clone the repository:**
    ```powershell
@@ -106,7 +106,7 @@ For the people who run your `Setup.exe`:
    .\build.ps1 -GameDir "C:\EA Games\Battlefield 1942"
    ```
    The first run creates `config.json` with a unique AppId for your installer. Edit it if you want your own title, server shortcut and so on, then run the build again.
-6. **Get your installer** from `output\BF1942_Expansions_Setup.exe`. The build prints its size and SHA-256. If the build is too big for one file, `output\` also contains `.bin` files; see [Installers larger than 2 GB](#installers-larger-than-2-gb).
+6. **Get your installer** from `output\BF1942_Expansions_Setup.exe`. The build prints its size and SHA-256. If the build is too big for one file, `output\` also contains `.bin` files; see [Very large installers](#very-large-installers).
 
 > [!TIP]
 > If PowerShell refuses to run the script, allow it for this session:
@@ -128,7 +128,7 @@ For the people who run your `Setup.exe`:
 | `appPublisher` | `BF1942 Community` | Publisher shown in Installed apps. |
 | `outputBaseFilename` | `BF1942_Expansions_Setup` | File name of the built `.exe` (and of the `.bin` files of a split build). |
 | `defaultInstallDir` | `{sd}\EA Games\Battlefield 1942` | Default install folder. `{sd}` is the system drive. |
-| `appendEAGamesFolder` | `true` | Always install into `<chosen folder>\EA Games\Battlefield 1942`. |
+| `appendEAGamesFolder` | `true` | Always install into `<chosen folder>\EA Games\Battlefield 1942`. Picking `C:\Temp` with **Browse...** shows `C:\Temp\EA Games\Battlefield 1942` right away, and a *"Will install to: …"* line under the box follows what the user types. |
 | `serverShortcutName` | *(empty)* | Name of the "join server" desktop shortcut. |
 | `serverAddress` | *(empty)* | `ip:port` to join, for example `203.0.113.10:14567`. Leave empty for no server shortcut. |
 | `generateSerial` | `true` | Register a random serial when none is present. |
@@ -218,8 +218,9 @@ Put `WizardImage100.bmp` (164×314) in `branding\` to replace the default Welcom
 | `-Quick` | Compile without the game files. A fast check of the script and components. **Don't distribute the result.** |
 | `-DownloadOnly` | Download and stage the components, then stop |
 | `-Force` | Download everything again instead of using `build\cache` |
-| `-Span` | Always split the installer into `Setup.exe` + `.bin` files (done automatically when a single file would be over 2 GB; see [Installers larger than 2 GB](#installers-larger-than-2-gb)) |
-| `-InstallInnoSetup` | Install Inno Setup with winget if it is missing |
+| `-Smallest` | Smallest installer: compresses everything as one stream with a 1 GB dictionary. A full build is about 100 MB (5%) smaller, but takes about 16 minutes instead of 2-3 and needs about 12 GB of free RAM. Use it for the builds you publish. |
+| `-Span` | Always split the installer into `Setup.exe` + `.bin` files (done automatically when a single file would be over about 4 GB; see [Very large installers](#very-large-installers)) |
+| `-NoInnoUpdate` | Don't install or update Inno Setup with winget; use the installed Inno Setup 7 as it is (for example when offline) |
 
 **What gets created** (all git-ignored):
 
@@ -228,16 +229,16 @@ Put `WizardImage100.bmp` (164×314) in `branding\` to replace the default Welcom
 | `build\cache\` | Downloads (reused between builds) |
 | `build\deps\` | Staged components |
 | `build\generated.iss` | Settings passed to Inno Setup |
-| `builduild.log` | Everything the last build printed, with times, plus the full Inno Setup output (replaced on every run) |
+| `build\build.log` | Everything the last build printed, with times, plus the full Inno Setup output (replaced on every run) |
 | `build\size-history.json` | Stats of the last successful build for each build type and compression setting: sizes (used to predict whether the next one fits in a single `Setup.exe`), total time and seconds per step |
 | `build\VulkanCheck.exe` | Helper compiled from `installer\VulkanCheck.cs` |
 | `output\` | Your installer (`Setup.exe`, plus `.bin` files for a split build) |
 
 ---
 
-## Installers larger than 2 GB
+## Very large installers
 
-A single-file `Setup.exe` must stay under 2 GB. A full build with every extra is about 1.97 GB, which fits.
+A single-file `Setup.exe` can be up to 4,200,000,000 bytes (about 4 GB; Inno Setup 6.5.2 raised this from 2 GB). A full build with every extra is about 1.97 GB, so it fits easily.
 
 **What `build.ps1` does:**
 
@@ -245,7 +246,7 @@ A single-file `Setup.exe` must stay under 2 GB. A full build with every extra is
    - If the files to pack are smaller than the limit, it builds a single `Setup.exe`.
    - Otherwise it predicts the compressed size from the previous build with the same compression setting (saved in `build\size-history.json`). On the first build it uses the typical compression ratio in `size-seed.json` instead. If the prediction is clearly over the limit (by more than 2%), it builds the split installer straight away, so the installer is only compiled once.
    - If neither file has an entry for your compression setting, or the prediction is close to the limit, it tries a single `Setup.exe` first.
-2. If a single `Setup.exe` was tried and Inno Setup reports that the file is too large, or the finished `Setup.exe` is bigger than 2 GB minus a 64 MB safety margin (2,080,374,784 bytes), the build prints a warning and compiles again as a **split installer**.
+2. If a single `Setup.exe` was tried and Inno Setup reports that the file is too large, or the finished `Setup.exe` is bigger than that limit minus a 64 MB safety margin (4,132,891,136 bytes), the build prints a warning and compiles again as a **split installer**.
 3. A split installer is a small `Setup.exe` plus data files named after it, each just under 2 GB:
 
    ```
@@ -283,7 +284,7 @@ Some antivirus products flag `build.ps1` as malware, move it to quarantine, or l
 
 Each of these is harmless on its own, but together they can push the script over a heuristic threshold. Scanners check a file most closely when it is new or has just changed, so a detection often appears right after cloning, pulling an update, or editing the script. Any change to the file can switch the detection on or off.
 
-**What the script does not do.** It only downloads from the official sources listed in `components.json`, checks every download against its pinned SHA-256 (or a valid Microsoft signature for the unpinned VC++ redistributable), and writes only inside the repository (`build\`, `output\`). The one exception is `-InstallInnoSetup`, which installs Inno Setup with winget. It is plain text, so you can read all of it before you run it.
+**What the script does not do.** It only downloads from the official sources listed in `components.json`, checks every download against its pinned SHA-256 (or a valid Microsoft signature for the unpinned VC++ redistributable), and writes only inside the repository (`build\`, `output\`). The one exception is Inno Setup 7, which it installs or updates with winget (`JRSoftware.InnoSetup.7`) unless you pass `-NoInnoUpdate`. It is plain text, so you can read all of it before you run it.
 
 **If your antivirus flags it:**
 
@@ -300,7 +301,7 @@ The installer you build is a separate file: an unsigned `Setup.exe` can also tri
 
 ## Distributing your installer
 
-- **Size:** the installer is normally a single `.exe` under **2 GB** (a full build with every extra is about 1.97 GB). A bigger build is split into `Setup.exe` + `.bin` files, which must be shared together. See [Installers larger than 2 GB](#installers-larger-than-2-gb).
+- **Size:** the installer is a single `.exe` of about 1.97 GB with every extra. Only a build over about 4 GB is split into `Setup.exe` + `.bin` files, which must be shared together. See [Very large installers](#very-large-installers).
 - **SmartScreen:** unsigned installers show *"Windows protected your PC"*. Players click **More info → Run anyway**. Code signing removes this.
 - **Antivirus:** some antivirus products are suspicious of new, unsigned installers, especially large ones that bundle tools such as PunkBuster, DXVK or dgVoodoo2. Publishing the SHA-256 and signing the installer both help. If a player's antivirus blocks it, submit the file to that vendor as a false positive.
 - **Checksum:** publish the SHA-256 that `build.ps1` prints (one per file for a split installer), so players can verify their download.
@@ -324,14 +325,16 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for adding new components.
 
 | Problem | Fix |
 |---|---|
-| `Inno Setup 6 was not found` | `winget install JRSoftware.InnoSetup`, or `.\build.ps1 -InstallInnoSetup` |
+| `Inno Setup 7 was not found` | `winget install --id JRSoftware.InnoSetup.7 --exact`. If winget itself is missing, install *App Installer* from the Microsoft Store, or download Inno Setup 7 from https://jrsoftware.org/isdl.php |
+| `winget upgrade failed` | The build carries on with the installed Inno Setup 7. The winget output is in `build\build.log`. |
 | `BF1942.exe was not found` | Pass `-GameDir`, set `gameDir` in `config.json`, or copy the game to `game\` |
 | `SHA-256 mismatch` | The file on the download server changed. Check the project's release page before updating `components.json`. |
 | Antivirus warning about the dgVoodoo2 zip | Some antivirus products flag tools inside the dgVoodoo2 release (a false positive). The build handles that archive in memory and never saves it (`"cache": false`); only `D3D8.dll` is used. |
 | Antivirus quarantines or locks `build.ps1` (for example Bitdefender `Heur.BZC.PZQ.Boxter.*`) | A false positive caused by what the script has to do. See [Antivirus and build.ps1](#antivirus-and-buildps1). |
 | "Access denied" on a file in `build\` | Antivirus is scanning a new file. Run the build again; the script already retries for 30 seconds. |
-| Out of memory while compiling | Set `"compression": "lzma2/max"` in `config.json` |
-| Installer over 2 GB | `build.ps1` splits it into `Setup.exe` + `.bin` files automatically. See [Installers larger than 2 GB](#installers-larger-than-2-gb) |
+| `Setup.exe` could not be deleted or replaced | An antivirus scan can hold the finished installer open for minutes. The build waits, then renames the old file to `*.old-*` and carries on; leftovers are deleted at the start of the next build. |
+| Out of memory while compiling | Close other programs or leave out `-Smallest`. If it still fails, set `"compression": "lzma2/max"` in `config.json` |
+| Installer over 4 GB | `build.ps1` splits it into `Setup.exe` + `.bin` files automatically. See [Very large installers](#very-large-installers) |
 | Players get the wrong renderer | They can run `Setup.exe /RENDERER=dxvk` or `/RENDERER=dgvoodoo` |
 | Install problems | The setup log is at `%TEMP%\Setup Log YYYY-MM-DD #NNN.txt` |
 

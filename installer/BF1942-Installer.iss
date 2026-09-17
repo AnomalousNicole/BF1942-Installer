@@ -5,10 +5,10 @@
 ; build.ps1 downloads the components, compiles VulkanCheck.exe and writes build\generated.iss
 ; (your settings from config.json + component versions from components.json), included below.
 
-#if Ver < EncodeVer(6, 4, 0)
-  #error Inno Setup 6.4 or newer is required.
+#if Ver < EncodeVer(7, 0, 0)
+  #error Inno Setup 7 or newer is required.
 #endif
-#define Root ExtractFileDir(RemoveBackslash(SourcePath))
+#define Root ExtractFileDir(RemoveBackslashUnlessRoot(SourcePath))
 #if !FileExists(Root + "\build\generated.iss")
   #error build\generated.iss was not found - run build.ps1 from the repository root instead of compiling this script directly.
 #endif
@@ -43,6 +43,9 @@
 #endif
 #if Has_datafield42
   #define WelcomeTools WelcomeTools + "%n  • DataField42 " + Ver_datafield42 + " by Ahrkylien"
+#endif
+#if Has_bobsiren
+  #define WelcomeTools WelcomeTools + "%n  • Battle of Britain - disable siren by Nicole @ MoonGamers"
 #endif
 #if Has_richpresence
   #define WelcomeTools WelcomeTools + "%n  • Battlefield Rich Presence " + Ver_richpresence + " by Gametools Network"
@@ -81,15 +84,19 @@ UninstallDisplayIcon={app}\BF1942.exe
 UninstallDisplayName={#AppName}
 OutputDir={#OutputDir}
 OutputBaseFilename={#OutputBase}
-; A single Setup.exe must stay under 2 GB. build.ps1 defines SPAN when the build does not fit,
+; A single Setup.exe can hold up to 4,200,000,000 bytes. build.ps1 defines SPAN when the build does not fit,
 ; which keeps Setup.exe small and puts the data in <OutputBase>-1.bin, -2.bin, ... next to it
 Compression={#Compression}
 SolidCompression=yes
-LZMAUseSeparateProcess=yes
-LZMANumBlockThreads=4
+; build.ps1 picks the thread count for this PC. With -Smallest it compresses one stream with a 1 GB
+; dictionary instead (about 5% smaller, much slower); 1 GB is the most a 32-bit Setup supports.
+LZMANumBlockThreads={#LzmaThreads}
+#if LzmaDict > 0
+LZMADictionarySize={#LzmaDict}
+#endif
 #ifdef SPAN
 DiskSpanning=yes
-; Just under 2 GB per slice ("max" means unlimited on Inno Setup 6.5+)
+; Just under 2 GB per slice, so every file stays easy to upload and copy ("max" would mean unlimited)
 DiskSliceSize=2100000000
 #else
 DiskSpanning=no
@@ -119,7 +126,7 @@ Name: "required\directx"; Description: "DirectX End-User Runtime (June 2010) (on
 Name: "required\vcredist"; Description: "Visual C++ Redistributable x86 {#VCVer} (only if missing)"; Types: recommended custom; Flags: fixed
 Name: "required\directplay"; Description: "Enable Windows DirectPlay feature (only if not enabled)"; Types: recommended custom; Flags: fixed
 #if Has_bobsiren
-Name: "bobsiren"; Description: "Battle of Britain - disable the air raid siren"; Types: custom
+Name: "bobsiren"; Description: "Battle of Britain - disable the air raid siren (Nicole @ MoonGamers)"; Types: custom
 #endif
 ; Borderless1942 and Battlefield Rich Presence are 64-bit only - hidden on 32-bit Windows
 #if Has_borderless1942
@@ -338,11 +345,11 @@ function GetSystemMetrics(nIndex: Integer): Integer;
   external 'GetSystemMetrics@user32.dll stdcall';
 function GetTickCount: DWORD;
   external 'GetTickCount@kernel32.dll stdcall';
-function GetDC(hWnd: HWND): LongWord;
+function GetDC(hWnd: HWND): HDC;
   external 'GetDC@user32.dll stdcall';
-function ReleaseDC(hWnd: HWND; hDC: LongWord): Integer;
+function ReleaseDC(hWnd: HWND; hDC: HDC): Integer;
   external 'ReleaseDC@user32.dll stdcall';
-function GetDeviceCaps(hDC: LongWord; nIndex: Integer): Integer;
+function GetDeviceCaps(hDC: HDC; nIndex: Integer): Integer;
   external 'GetDeviceCaps@gdi32.dll stdcall';
 
 const
@@ -353,7 +360,7 @@ const
 { Primary monitor resolution in real pixels (not affected by Windows display scaling) and refresh rate }
 procedure GetPrimaryDisplay(var Width, Height, Refresh: Integer);
 var
-  DC: LongWord;
+  DC: HDC;
 begin
   DC := GetDC(0);
   Width := GetDeviceCaps(DC, DESKTOPHORZRES);
@@ -774,12 +781,112 @@ begin
   Result := L('\b ' + S + '\b0');
 end;
 
+{ ---------- Install folder ---------- }
+
+{ Optionally (appendEAGamesFolder) always install to <chosen folder>\EA Games\Battlefield 1942,
+  e.g. C:\Temp -> C:\Temp\EA Games\Battlefield 1942 }
+function EndsWithDir(const Path, Tail: String): Boolean;
+begin
+  Result := PathEndsWith(Path, '\' + Tail, True);
+end;
+
+function NormalizeInstallDir(Dir: String): String;
+begin
+  Dir := RemoveBackslashUnlessRoot(Trim(Dir));
+  if EndsWithDir(Dir, 'EA Games\Battlefield 1942') then
+    Result := Dir
+  else if EndsWithDir(Dir, 'Battlefield 1942') then
+    Result := PathCombine(ExtractFileDir(Dir), 'EA Games\Battlefield 1942')
+  else if EndsWithDir(Dir, 'EA Games') then
+    Result := PathCombine(Dir, 'Battlefield 1942')
+  else
+    Result := PathCombine(Dir, 'EA Games\Battlefield 1942');
+end;
+
+var
+  InstallDirHint: TNewStaticText;
+
+{ Shows the folder the game will really end up in, so the rule is visible while typing }
+procedure UpdateInstallDirHint;
+var
+  Current: String;
+begin
+  if InstallDirHint = nil then Exit;
+  Current := Trim(WizardForm.DirEdit.Text);
+  if Current = '' then
+    InstallDirHint.Caption := ''
+  else
+    InstallDirHint.Caption := 'Will install to:  ' + NormalizeInstallDir(Current);
+end;
+
+procedure DirEditChange(Sender: TObject);
+begin
+  UpdateInstallDirHint;
+end;
+
+{ Applies the folder rule to the folder box on the Select Destination Location page }
+procedure ApplyInstallDirRule;
+var
+  Current, Fixed: String;
+begin
+  Current := Trim(WizardForm.DirEdit.Text);
+  if Current = '' then Exit;
+  Fixed := NormalizeInstallDir(Current);
+  if WizardForm.DirEdit.Text <> Fixed then begin
+    Log('Install folder adjusted: ' + WizardForm.DirEdit.Text + ' -> ' + Fixed);
+    WizardForm.DirEdit.Text := Fixed;
+  end;
+  UpdateInstallDirHint;
+end;
+
+{ Browse... : the picked folder is the parent, so C:\Temp shows as C:\Temp\EA Games\Battlefield 1942 right away }
+procedure DirBrowseButtonClick(Sender: TObject);
+var
+  Dir: String;
+begin
+  { Start in the deepest folder of the current path that exists }
+  Dir := RemoveBackslashUnlessRoot(Trim(WizardForm.DirEdit.Text));
+  while (Dir <> '') and not DirExists(Dir) and not PathSame(Dir, ExtractFileDir(Dir)) do
+    Dir := ExtractFileDir(Dir);
+  if BrowseForFolder(SetupMessage(msgBrowseDialogTitle), Dir, True) then begin
+    WizardForm.DirEdit.Text := Dir;
+    ApplyInstallDirRule;
+  end;
+end;
+
+{ A typed folder gets the rule as soon as the user leaves the box }
+procedure DirEditExit(Sender: TObject);
+begin
+  ApplyInstallDirRule;
+end;
+
+procedure HookInstallDirPage;
+begin
+#if AppendEAGames
+  WizardForm.DirBrowseButton.OnClick := @DirBrowseButtonClick;
+  WizardForm.DirEdit.OnExit := @DirEditExit;
+  WizardForm.DirEdit.OnChange := @DirEditChange;
+  InstallDirHint := TNewStaticText.Create(WizardForm);
+  InstallDirHint.Parent := WizardForm.DirEdit.Parent;
+  InstallDirHint.Left := WizardForm.DirEdit.Left;
+  InstallDirHint.Top := WizardForm.DirEdit.Top + WizardForm.DirEdit.Height + ScaleY(8);
+  InstallDirHint.Width := WizardForm.DirBrowseButton.Left + WizardForm.DirBrowseButton.Width - WizardForm.DirEdit.Left;
+  InstallDirHint.AutoSize := False;
+  InstallDirHint.WordWrap := True;
+  InstallDirHint.Height := WizardForm.DiskSpaceLabel.Height * 3;
+  InstallDirHint.ShowAccelChar := False;
+  UpdateInstallDirHint;
+#endif
+end;
+
+
 procedure InitializeWizard;
 var
   Page: TOutputMsgMemoWizardPage;
   S: String;
 begin
   WizardForm.Caption := '{#InstallerTitle}';
+  HookInstallDirPage;
   Page := CreateOutputMsgMemoPage(wpWelcome,
     'Readme & Credits',
     'Please read the following information before continuing.',
@@ -864,40 +971,12 @@ begin
   Page.RichEditViewer.RTFText := S;
 end;
 
-{ Optionally always install to <chosen folder>\EA Games\Battlefield 1942,
-  e.g. C:\Temp\Battlefield 1942 -> C:\Temp\EA Games\Battlefield 1942 }
-function EndsWithDir(const Path, Tail: String): Boolean;
-begin
-  Result := (Length(Path) >= Length(Tail) + 1) and
-            (CompareText(Copy(Path, Length(Path) - Length(Tail), Length(Tail) + 1), '\' + Tail) = 0);
-end;
-
-function NormalizeInstallDir(Dir: String): String;
-begin
-  Dir := RemoveBackslashUnlessRoot(Trim(Dir));
-  if EndsWithDir(Dir, 'EA Games\Battlefield 1942') then
-    Result := Dir
-  else if EndsWithDir(Dir, 'Battlefield 1942') then
-    Result := AddBackslash(ExtractFileDir(Dir)) + 'EA Games\Battlefield 1942'
-  else if EndsWithDir(Dir, 'EA Games') then
-    Result := Dir + '\Battlefield 1942'
-  else
-    Result := AddBackslash(Dir) + 'EA Games\Battlefield 1942';
-end;
-
 function NextButtonClick(CurPageID: Integer): Boolean;
-var
-  Fixed: String;
 begin
   Result := True;
 #if AppendEAGames
-  if CurPageID = wpSelectDir then begin
-    Fixed := NormalizeInstallDir(WizardForm.DirEdit.Text);
-    if CompareText(Fixed, WizardForm.DirEdit.Text) <> 0 then begin
-      Log('Install folder adjusted: ' + WizardForm.DirEdit.Text + ' -> ' + Fixed);
-      WizardForm.DirEdit.Text := Fixed;
-    end;
-  end;
+  if CurPageID = wpSelectDir then
+    ApplyInstallDirRule;
 #endif
 end;
 
@@ -969,7 +1048,7 @@ var
   Uninst: String;
 begin
   if RegQueryStringValue(HKLM32, UninstallKey + '\' + PBGameKey, 'UninstallString', Uninst) and
-     (Pos(Lowercase(AddBackslash(ExpandConstant('{app}'))), Lowercase(RemoveQuotes(Uninst))) = 1) then begin
+     PathStartsWith(RemoveQuotes(Uninst), AddBackslash(ExpandConstant('{app}')), True) then begin
     Log('Removing ' + PBGameKey);
     RegDeleteKeyIncludingSubkeys(HKLM32, UninstallKey + '\' + PBGameKey);
     DelTree(ExpandConstant('{commonprograms}\' + PBGameKey), True, True, True);
@@ -980,9 +1059,9 @@ end;
 
 function IsOtherPBGameDir(Dir: String): Boolean;
 begin
-  Dir := RemoveBackslash(RemoveQuotes(Trim(Dir)));
-  Result := (Dir <> '') and (CompareText(Dir, RemoveBackslash(ExpandConstant('{app}'))) <> 0) and
-            FileExists(Dir + '\pb\pbcl.dll');
+  Dir := RemoveBackslashUnlessRoot(PathNormalizeSlashes(RemoveQuotes(Trim(Dir))));
+  Result := (Dir <> '') and not PathSame(Dir, ExpandConstant('{app}')) and
+            FileExists(PathCombine(Dir, 'pb\pbcl.dll'));
   if Result then Log('Other PunkBuster game found: ' + Dir);
 end;
 
@@ -1079,7 +1158,7 @@ begin
   Result := False;
   if not RegQueryStringValue(HKCU, 'Software\Valve\Steam', 'SteamPath', SteamDir) then
     SteamDir := ExpandConstant('{commonpf32}\Steam');
-  StringChangeEx(SteamDir, '/', '\', True);
+  SteamDir := PathNormalizeSlashes(SteamDir);
   Result := PBGameInSubfolders(SteamDir + '\steamapps\common');
   if Result or not LoadStringFromFile(SteamDir + '\steamapps\libraryfolders.vdf', Vdf) then Exit;
   S := String(Vdf);
@@ -1092,7 +1171,7 @@ begin
     P := Pos('"', S);                         { closing quote }
     if P = 0 then Break;
     LibPath := Copy(S, 1, P - 1);
-    StringChangeEx(LibPath, '\\', '\', True);
+    LibPath := PathNormalizeSlashes(LibPath);   { libraryfolders.vdf escapes each backslash as \\ }
     Result := PBGameInSubfolders(LibPath + '\steamapps\common');
     P := Pos('"path"', S);
   end;
@@ -1103,7 +1182,7 @@ begin
   Result := PBGameInUninstallEntries or
             PBGameInEAKeys('SOFTWARE\Electronic Arts\EA GAMES') or
             PBGameInEAKeys('SOFTWARE\Electronic Arts') or
-            PBGameInSubfolders(ExtractFileDir(RemoveBackslash(ExpandConstant('{app}')))) or
+            PBGameInSubfolders(ExtractFileDir(ExpandConstant('{app}'))) or
             PBGameInSubfolders(ExpandConstant('{sd}\EA Games')) or
             PBGameInSubfolders(ExpandConstant('{commonpf32}\EA Games')) or
             PBGameInSubfolders(ExpandConstant('{commonpf32}\Electronic Arts')) or
