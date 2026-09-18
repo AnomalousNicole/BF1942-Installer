@@ -18,6 +18,7 @@ cd BF1942-Installer
 ## Contents
 
 - [What the installer does](#what-the-installer-does)
+- [The installer wizard](#the-installer-wizard)
 - [Requirements](#requirements)
 - [Quick start](#quick-start)
 - [Configuration](#configuration)
@@ -66,6 +67,16 @@ For the people who run your `Setup.exe`:
 - Its DataField42 and Rich Presence installs.
 - The PunkBuster pieces for this game. The shared PunkBuster Services are removed only if no other PunkBuster game is installed.
 - The Windows Firewall rules for the game folder.
+
+---
+
+## The installer wizard
+
+Eight pages, from Welcome to Finish. **[docs/WIZARD.md](docs/WIZARD.md) walks through every one of them with screenshots** and says which parts follow your configuration.
+
+| | |
+|---|---|
+| [![Welcome page](docs/images/wizard/01-welcome.jpg)](docs/WIZARD.md#1-welcome) | [![Select Components page](docs/images/wizard/07-select-components.jpg)](docs/WIZARD.md#4-select-components) |
 
 ---
 
@@ -378,7 +389,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for adding new components.
 
 ## How it works
 
-The full technical write-up is in [docs/TECHNICAL.md](docs/TECHNICAL.md). It covers:
+The full technical write-up is in [docs/TECHNICAL.md](docs/TECHNICAL.md), and [docs/WIZARD.md](docs/WIZARD.md) shows the wizard the player sees. The technical write-up covers:
 
 - How DXVK or dgVoodoo2 is chosen
 - The order things are installed in
@@ -398,7 +409,9 @@ BF1942-Installer/
 ├── components/               # Config files (+ LGPL audio libraries) copied into the install
 ├── extras/                   # Optional files with no official download
 ├── branding/                 # Your optional artwork (git-ignored)
-└── docs/TECHNICAL.md
+└── docs/
+    ├── TECHNICAL.md          # How it works, in detail
+    └── WIZARD.md             # The wizard, page by page, with screenshots
 ```
 
 ---
