@@ -26,6 +26,8 @@ Open an issue and include:
 
 The Visual C++ redistributable and the .NET 8 Desktop Runtime are not pinned: every build downloads the latest one (`aka.ms` for VC++, Microsoft's .NET 8.0 release feed for .NET, which also supplies the SHA-512 that is verified). Leave their entries alone - the `url`/`sha256` of `dotnet8` are only the offline fallback. The `resolve` block on a download turns this on; only the .NET release feed is supported.
 
+A component with `"checkLatest": "owner/repo"` (currently Borderless1942) stays pinned, but every build asks GitHub for that repository's latest release and prints a WARNING when it is newer than `version`. Update the component as above when you want it; if GitHub cannot be reached the build only notes that and carries on.
+
 Only use **official** download locations, such as the project's GitHub releases or Microsoft's download servers. Never commit third-party binaries unless their license allows it. The DSOAL/OpenAL Soft files in `components/hrtf` are LGPL. The files in `extras/` have no official download and are included on purpose. `components/bobsiren/Battle_of_Britain.rfa` is included with the permission of its author, Nicole @ MoonGamers.
 
 ## Adding a new component

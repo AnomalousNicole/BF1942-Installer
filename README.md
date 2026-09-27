@@ -190,7 +190,7 @@ Two Microsoft runtimes are deliberately **not** pinned, so that every build ship
 | Id | Component | Version | Author |
 |---|---|---|---|
 | `bobsiren` | Battle of Britain - disable siren: the Battle of Britain map without the air raid siren. Included in `components/bobsiren` | | Nicole @ MoonGamers |
-| `borderless1942` | [Borderless1942](https://github.com/LANCommander/Borderless1942) | 1.3.0 | LANCommander |
+| `borderless1942` | [Borderless1942](https://github.com/AnomalousNicole/Borderless1942) | 1.3.1 | Turnerj (original), LANCommander, Nicole |
 | `datafield42` | [DataField42](https://github.com/Ahrkylien/BF1942-DataField42) | v2.1.0 | Ahrkylien |
 | `richpresence` | [Battlefield Rich Presence](https://github.com/community-network/Battlefield-rich-presence) | v1.6.0 | Gametools Network |
 | `dotnet8` | .NET 8 Desktop Runtime (x64), needed by Rich Presence | latest 8.0.x (resolved at build time) | Microsoft |
@@ -424,7 +424,7 @@ This installer bundles the work of these developers, and all credit goes to them
 - **DXVK**: [Philip Rebohle (doitsujin)](https://github.com/doitsujin/dxvk)
 - **dgVoodoo2**: [Dege](https://github.com/dege-diosg/dgVoodoo2)
 - **DSOAL / OpenAL Soft**: [Chris Robinson (kcat)](https://github.com/kcat)
-- **Borderless1942**: [LANCommander](https://github.com/LANCommander/Borderless1942)
+- **Borderless1942**: [Turnerj](https://github.com/Turnerj/Borderless1942) (original author), [LANCommander](https://github.com/LANCommander/Borderless1942) (parent fork) and [Nicole](https://github.com/AnomalousNicole/Borderless1942)
 - **DataField42**: [Ahrkylien](https://github.com/Ahrkylien/BF1942-DataField42)
 - **Battlefield Rich Presence**: [Gametools Network](https://github.com/community-network/Battlefield-rich-presence)
 - **Punkbuster42**: the BF1942 community (PunkBuster itself: Even Balance, Inc.)

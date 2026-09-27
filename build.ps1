@@ -312,6 +312,25 @@ function Resolve-DotnetRelease($Resolve) {
     }
 }
 
+# Warns when a GitHub repository has published a newer release than the pinned version. The build still
+# uses the pinned file - moving to a new release stays a deliberate change. A failed check never stops the build.
+function Test-NewerRelease([string]$Name, [string]$Repo, [string]$Pinned) {
+    try {
+        $client = New-Object Net.WebClient
+        $client.Headers['User-Agent'] = 'BF1942-Installer-build'
+        $client.Headers['Accept'] = 'application/vnd.github+json'
+        $latest = "$(($client.DownloadString("https://api.github.com/repos/$Repo/releases/latest") | ConvertFrom-Json).tag_name)"
+    } catch {
+        Write-Note "Could not check $Repo for a newer $Name release ($($_.Exception.Message))"
+        return
+    }
+    $have = $Pinned.TrimStart('v'); $new = $latest.TrimStart('v')
+    $a = $null; $b = $null
+    $newer = if ([version]::TryParse($have, [ref]$a) -and [version]::TryParse($new, [ref]$b)) { $b -gt $a } else { $new -ne $have }
+    if ($newer) { Write-Note "$Name $latest is available (this build uses $Pinned): https://github.com/$Repo/releases/latest" }
+    else { Write-Info "  $Name $Pinned is the latest release on $Repo" }
+}
+
 # 7-Zip for -Package7z: an installed 7z.exe, or the standalone console build in build\tools.
 function Find-SevenZip {
     $cmd = Get-Command '7z.exe' -ErrorAction SilentlyContinue
@@ -601,6 +620,9 @@ foreach ($c in $manifest.components) {
     if ($resolvedNote) { $pin = " ($resolvedNote)" }
     elseif (@($c.downloads).Count -gt 0 -and -not (@($c.downloads) | Where-Object { $_.sha256 -or $_.sha512 })) { $pin = ' (not pinned - signature verified)' }
     Write-Good "+ $(Format-Credit $c)$pin"
+    # "checkLatest": a GitHub owner/repo whose newest release is compared with the pinned version
+    $check = $c.PSObject.Properties['checkLatest']
+    if ($check -and $check.Value) { Test-NewerRelease $c.name $check.Value $c.version }
 }
 foreach ($c in $included.Values) {
     foreach ($r in @($c.PSObject.Properties['requires'] | ForEach-Object { $_.Value })) {

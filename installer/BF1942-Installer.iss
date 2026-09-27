@@ -39,7 +39,7 @@
 ; ---- Welcome page list of included community tools ----
 #define WelcomeTools "%n  • BF42++ " + Ver_bf42pp + " by Casqade%n  • DXVK " + Ver_dxvk + " by Philip Rebohle (doitsujin)%n  • dgVoodoo2 " + Ver_dgvoodoo2 + " by Dege (dege-diosg)%n  • DSOAL + OpenAL Soft by Chris Robinson (kcat)"
 #if Has_borderless1942
-  #define WelcomeTools WelcomeTools + "%n  • Borderless1942 " + Ver_borderless1942 + " by LANCommander"
+  #define WelcomeTools WelcomeTools + "%n  • Borderless1942 " + Ver_borderless1942 + " by Turnerj, LANCommander and Nicole"
 #endif
 #if Has_datafield42
   #define WelcomeTools WelcomeTools + "%n  • DataField42 " + Ver_datafield42 + " by Ahrkylien"
@@ -130,7 +130,7 @@ Name: "bobsiren"; Description: "Battle of Britain - disable the air raid siren (
 #endif
 ; Borderless1942 and Battlefield Rich Presence are 64-bit only - hidden on 32-bit Windows
 #if Has_borderless1942
-Name: "borderless"; Description: "Borderless1942 {#Ver_borderless1942} (LANCommander) - borderless window launcher"; Types: custom; Check: IsWin64
+Name: "borderless"; Description: "Borderless1942 {#Ver_borderless1942} (Turnerj, LANCommander, Nicole) - borderless window launcher"; Types: custom; Check: IsWin64
 #endif
 #if Has_datafield42
 Name: "datafield"; Description: "DataField42 {#Ver_datafield42} (Ahrkylien) - automatic map/mod downloader"; Types: custom
@@ -929,7 +929,7 @@ begin
     L('    The Battle of Britain map without the air raid siren.') + L('');
 #endif
 #if Has_borderless1942
-  S := S + L('  Borderless1942 {#Ver_borderless1942} - developed by LANCommander') +
+  S := S + L('  Borderless1942 {#Ver_borderless1942} - originally by Turnerj, forked by LANCommander, then by Nicole') +
     L('    {#Url_borderless1942}') + L('');
 #endif
 #if Has_datafield42

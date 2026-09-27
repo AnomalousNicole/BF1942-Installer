@@ -108,16 +108,17 @@
     {
       "id": "borderless1942",
       "name": "Borderless1942",
-      "version": "1.3.0",
-      "author": "LANCommander",
-      "homepage": "https://github.com/LANCommander/Borderless1942",
+      "version": "1.3.1",
+      "author": "Turnerj, LANCommander and Nicole",
+      "homepage": "https://github.com/AnomalousNicole/Borderless1942",
+      "checkLatest": "AnomalousNicole/Borderless1942",
       "required": false,
       "downloads": [
         {
           "type": "file",
-          "url": "https://github.com/LANCommander/Borderless1942/releases/download/1.3.0/Borderless1942.exe",
+          "url": "https://github.com/AnomalousNicole/Borderless1942/releases/download/1.3.1/Borderless1942.exe",
           "fileName": "Borderless1942.exe",
-          "sha256": "D62C3DE9D214DE6AA07BB47000E7A9D73D6E15ABA1CC39A77059BFB4119B1BEA"
+          "sha256": "B19D6B607F855F99E673EE17BED4D95CCD490DB592656D1B61DE95CC50801D51"
         }
       ]
     },

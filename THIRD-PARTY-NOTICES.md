@@ -12,7 +12,7 @@ This repository contains **no unmodified game files** The third-party binaries i
 | BF42++ | v2.0 | Casqade | No license file published | https://github.com/Casqade/bf42plusplus |
 | DXVK | v2.7.1 | Philip Rebohle and contributors | zlib | https://github.com/doitsujin/dxvk |
 | dgVoodoo2 | v2.87.4 | Dege | Freeware; see the readme in the release | https://github.com/dege-diosg/dgVoodoo2 |
-| Borderless1942 | 1.3.0 | LANCommander | No license file published | https://github.com/LANCommander/Borderless1942 |
+| Borderless1942 | 1.3.1 | Turnerj (original), LANCommander, Nicole | No license file published | https://github.com/AnomalousNicole/Borderless1942 (fork of LANCommander/Borderless1942, originally Turnerj/Borderless1942) |
 | DataField42 | v2.1.0 | Ahrkylien | MIT | https://github.com/Ahrkylien/BF1942-DataField42 |
 | Battlefield Rich Presence | v1.6.0 | Gametools Network | MIT | https://github.com/community-network/Battlefield-rich-presence |
 | DirectX End-User Runtime | June 2010 | Microsoft | Microsoft redistributable terms | https://www.microsoft.com/download/details.aspx?id=8109 |
