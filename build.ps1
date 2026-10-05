@@ -11,6 +11,8 @@
     5. Compiles the VulkanCheck helper and writes build\generated.iss.
     6. Runs Inno Setup and writes the installer to output\.
     7. With -Package7z, packs the finished installer into a .7z archive with 7-Zip.
+    8. Writes the name, size and SHA-256 of every output file to
+       output\<OutputBase>_YYYY-MM-DD_hh.mm.ss_AM.txt (named after the build time, 12-hour clock).
 
 .PARAMETER GameDir
     Folder that contains BF1942.exe. Overrides "gameDir" in config.json.
@@ -931,15 +933,21 @@ $history[$historyKey] = [pscustomobject]@{
 try { [pscustomobject]$history | ConvertTo-Json | Set-Content -LiteralPath $historyFile -Encoding UTF8 } catch { Write-Note "Could not save build\size-history.json ($($_.Exception.Message))" }
 Write-Host ''
 Write-Good ("Built {0} in {1:N1} minutes" -f $item.Name, ((Get-Date) - $started).TotalMinutes)
+# Every output file with its size and SHA-256, for the hash file written at the end
+$hashed = New-Object System.Collections.Generic.List[object]
 if ($slices.Count) {
     $total = $outputBytes
     Write-Info ("Split into {0} + {1} .bin file(s), {2:N0} bytes in total. Players need all of them in the same folder." -f $item.Name, $slices.Count, $total)
     foreach ($f in @($item) + $slices) {
-        Write-Info ("{0}  {1:N0} bytes  SHA-256: {2}" -f $f.Name, $f.Length, (Get-Sha256 $f.FullName))
+        $hash = Get-Sha256 $f.FullName
+        $hashed.Add([pscustomobject]@{ Name = $f.Name; Length = $f.Length; Hash = $hash })
+        Write-Info ("{0}  {1:N0} bytes  SHA-256: {2}" -f $f.Name, $f.Length, $hash)
     }
 } else {
+    $hash = Get-Sha256 $setup
+    $hashed.Add([pscustomobject]@{ Name = $item.Name; Length = $item.Length; Hash = $hash })
     Write-Info ("Size:    {0:N0} bytes ({1:N0} MB below the single-file limit of {2:N0} bytes)" -f $item.Length, (($SetupLimit - $item.Length) / 1e6), $SetupLimit)
-    Write-Info ("SHA-256: {0}" -f (Get-Sha256 $setup))
+    Write-Info ("SHA-256: {0}" -f $hash)
 }
 if ($Package7z) {
     $levelText = if ($PackageLevel -eq 0) { 'store' } elseif ($PackageLevel -eq 9) { 'ultra' } else { "level $PackageLevel" }
@@ -977,7 +985,11 @@ if ($Package7z) {
     Write-Host ''
     Write-Good ("Packed {0} in {1:N1} minutes" -f $(if ($written.Count -gt 1) { "$outputBase.7z into $($written.Count) volumes" } else { $written[0].Name }), ((Get-Date) - $packStart).TotalMinutes)
     Write-Info ("Size:    {0:N0} bytes ({1:N1}% of the {2:N0} bytes it packs)" -f $packedBytes, ($packedBytes / [double]$outputBytes * 100), $outputBytes)
-    foreach ($f in $written) { Write-Info ("{0}  {1:N0} bytes  SHA-256: {2}" -f $f.Name, $f.Length, (Get-Sha256 $f.FullName)) }
+    foreach ($f in $written) {
+        $hash = Get-Sha256 $f.FullName
+        $hashed.Add([pscustomobject]@{ Name = $f.Name; Length = $f.Length; Hash = $hash })
+        Write-Info ("{0}  {1:N0} bytes  SHA-256: {2}" -f $f.Name, $f.Length, $hash)
+    }
     if ($written.Count -gt 1) {
         Write-Info "Players need every volume in one folder and extract $($written[0].Name); the rest follow automatically."
     } else {
@@ -985,4 +997,20 @@ if ($Package7z) {
     }
     Write-Info ("They need about {0:N0} MB free to extract it, on top of the download." -f ($outputBytes / 1e6))
 }
+
+# The hashes go next to the installer in a text file named after the build time, to publish with it.
+# Older hash files describe output that has just been overwritten, so they are removed.
+Get-ChildItem -LiteralPath $outputDir -Filter "$($outputBase)_*.txt" -File -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -match ('^' + [regex]::Escape($outputBase) + '_\d{4}-\d{2}-\d{2}_\d{2}\.\d{2}\.\d{2}_(AM|PM)\.txt$') } |
+    ForEach-Object { Remove-WithRetry $_.FullName }
+# 12-hour clock with AM/PM; the invariant culture keeps "AM"/"PM" whatever the Windows language is
+$en = [Globalization.CultureInfo]::InvariantCulture
+$hashFile = Join-Path $outputDir ("$($outputBase)_$($item.LastWriteTime.ToString('yyyy-MM-dd_hh.mm.ss_tt', $en)).txt")
+$hashLines = @("Built:   $($item.LastWriteTime.ToString('yyyy-MM-dd hh:mm:ss tt', $en))")
+foreach ($h in $hashed) {
+    $hashLines += @('', $h.Name, ('Size:    {0:N0} bytes' -f $h.Length), "SHA-256: $($h.Hash)")
+}
+if ($Quick) { $hashLines += @('', '-Quick build without the game files - do not distribute it.') }
+[IO.File]::WriteAllLines($hashFile, $hashLines, (New-Object Text.UTF8Encoding $false))
+Write-Info "Hash file: $hashFile"
 if ($Quick) { Write-Note 'This was a -Quick build without the game files - do not distribute it.' }

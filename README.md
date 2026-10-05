@@ -118,7 +118,7 @@ Eight pages, from Welcome to Finish. **[docs/WIZARD.md](docs/WIZARD.md) walks th
    .\build.ps1 -GameDir "C:\EA Games\Battlefield 1942"
    ```
    The first run creates `config.json` with a unique AppId for your installer. Edit it if you want your own title, server shortcut and so on, then run the build again.
-6. **Get your installer** from `output\BF1942_Expansions_Setup.exe`. The build prints its size and SHA-256. If the build is too big for one file, `output\` also contains `.bin` files; see [Very large installers](#very-large-installers).
+6. **Get your installer** from `output\BF1942_Expansions_Setup.exe`. The build prints its size and SHA-256, and writes them to `output\BF1942_Expansions_Setup_YYYY-MM-DD_hh.mm.ss_AM.txt` to publish with it. If the build is too big for one file, `output\` also contains `.bin` files; see [Very large installers](#very-large-installers).
 
 > [!TIP]
 > If PowerShell refuses to run the script, allow it for this session:
@@ -348,7 +348,7 @@ The installer you build is a separate file: an unsigned `Setup.exe` can also tri
 - **Size:** the installer is a single `.exe` of about 1.97 GB with every extra, or about 1.87 GB when you build it with `-Smallest`. Only a build over about 4 GB is split into `Setup.exe` + `.bin` files, which must be shared together. See [Very large installers](#very-large-installers).
 - **SmartScreen:** unsigned installers show *"Windows protected your PC"*. Players click **More info → Run anyway**. Code signing removes this.
 - **Antivirus:** some antivirus products are suspicious of new, unsigned installers, especially large ones that bundle tools such as PunkBuster, DXVK or dgVoodoo2. Publishing the SHA-256 and signing the installer both help. If a player's antivirus blocks it, submit the file to that vendor as a false positive.
-- **Checksum:** publish the SHA-256 that `build.ps1` prints (one per file for a split installer), so players can verify their download.
+- **Checksum:** publish the SHA-256 that `build.ps1` prints (one per file for a split installer), so players can verify their download. The same values are in the time-stamped `.txt` file in `output\`.
 - **Licenses:** you are redistributing the bundled components, so read [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) first.
 
 ---
