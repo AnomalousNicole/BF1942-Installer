@@ -268,6 +268,10 @@ Root: HKLM32; Subkey: "{#StateKey}"; ValueType: string; ValueName: "RichPresence
 #if Has_punkbuster42
 ; PunkBuster Services are shared with other PB games - the uninstaller only removes them when no other PB game is found
 Root: HKLM32; Subkey: "{#StateKey}"; ValueType: string; ValueName: "PunkBuster"; ValueData: "1"; Components: punkbuster; Flags: uninsdeletekey
+; Punkbuster42 fills in its install folder from this key (not the Electronic Arts one), and only if the folder exists.
+; [Registry] is written before [Run], so the PunkBuster setup opens with the game folder already filled in
+Root: HKLM32; Subkey: "SOFTWARE\EA GAMES"; Components: punkbuster; Flags: uninsdeletekeyifempty
+Root: HKLM32; Subkey: "SOFTWARE\EA GAMES\Battlefield 1942"; ValueType: string; ValueName: "GAMEDIR"; ValueData: "{app}"; Components: punkbuster; Flags: uninsdeletevalue uninsdeletekeyifempty
 #endif
 
 [Icons]

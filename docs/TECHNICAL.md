@@ -88,6 +88,7 @@ It returns `1` when no device does, which means dgVoodoo2. If the check fails (t
 | Key / value | When | Removed on uninstall |
 |---|---|---|
 | `Electronic Arts\EA GAMES\Battlefield 1942\GAMEDIR` = `{app}` | Always | The value, then any empty parent keys |
+| `EA GAMES\Battlefield 1942\GAMEDIR` = `{app}` | `punkbuster` component | The value, then any empty parent keys |
 | `Electronic Arts\EA GAMES\Battlefield 1942\ergc` (default value) = random `[A-Z0-9]{22}` | `generateSerial` is on and no valid serial exists | Only if the installer created it |
 | `<registryStateKey>\Renderer`, `DataField42`, `RichPresence`, `PunkBuster` | Always / per component | The whole key |
 
@@ -129,7 +130,7 @@ With `appendEAGamesFolder`, the chosen folder is normalised to `…\EA Games\Bat
 5. DataField42 setup: `/SILENT /SUPPRESSMSGBOXES /NORESTART /SP- /DIR="{app}"`.
 6. .NET 8 Desktop Runtime: only if no complete 8.0.x runtime is found. A version only counts when `Microsoft.WindowsDesktop.App.deps.json` and the matching `Microsoft.NETCore.App` files exist and a `host\fxr\*\hostfxr.dll` is present. If the bundled version is registered but incomplete, it runs with `/repair`. If the runtime is still incomplete afterwards, the user is told how to repair it by hand.
 7. `msiexec /i` Battlefield Rich Presence, `/qn`.
-8. `Punkbuster42.exe`, which is interactive. Setup then **waits for `pbsvc.exe` to exit**, because Punkbuster42 leaves its *PunkBuster Services* window open.
+8. `Punkbuster42.exe`, which is interactive. Its folder page is filled in from `HKLM32\SOFTWARE\EA GAMES\Battlefield 1942\GAMEDIR`, which setup writes as `{app}` for the `punkbuster` component. Punkbuster42 ignores the value if the folder doesn't exist, and it never reads the `Electronic Arts\EA GAMES` key. Setup then **waits for `pbsvc.exe` to exit**, because Punkbuster42 leaves its *PunkBuster Services* window open.
 
 ---
 
