@@ -5,6 +5,10 @@
 // DXVK 2.x requirements checked:
 //   * a Vulkan 1.3 capable GPU driver (integrated, discrete or virtual GPU - not a CPU renderer)
 //   * VK_EXT_robustness2 (or VK_KHR_robustness2)
+//   * VK_KHR_maintenance5 (core in Vulkan 1.4) - DXVK 2.7 skips the GPU without it, which
+//     happens on AMD Polaris (RX 400/500) drivers that report Vulkan 1.3
+//   * VK_KHR_pipeline_library and VK_KHR_swapchain
+//   * at least 256 bytes of push constants (limits.maxPushConstantsSize)
 //   * core feature robustBufferAccess
 //
 // Exit code 0 = DXVK supported, 1 = not supported (use dgVoodoo2), 2 = unexpected error.
@@ -85,17 +89,22 @@ static class VulkanCheck
                     uint api = BitConverter.ToUInt32(props, 0);
                     uint type = BitConverter.ToUInt32(props, 16);
                     string name = CString(props, 20, 256);
+                    // limits start at offset 296 (after pipelineCacheUUID, 8-byte aligned); maxPushConstantsSize is its 9th uint32
+                    uint pushConstants = BitConverter.ToUInt32(props, 296 + 8 * 4);
                     uint major = (api >> 22) & 0x7F, minor = (api >> 12) & 0x3FF;
 
                     uint extCount = 0;
                     vkEnumerateDeviceExtensionProperties(devices[i], IntPtr.Zero, ref extCount, null);
                     var exts = new byte[Math.Max(extCount, 1) * 260]; // VkExtensionProperties = char[256] + uint32
                     vkEnumerateDeviceExtensionProperties(devices[i], IntPtr.Zero, ref extCount, exts);
-                    bool robustness2 = false;
+                    bool robustness2 = false, maintenance5 = major > 1 || minor >= 4, pipelineLibrary = false, swapchain = false;
                     for (int e = 0; e < extCount; e++)
                     {
                         string ext = CString(exts, e * 260, 256);
                         if (ext == "VK_EXT_robustness2" || ext == "VK_KHR_robustness2") robustness2 = true;
+                        else if (ext == "VK_KHR_maintenance5") maintenance5 = true;
+                        else if (ext == "VK_KHR_pipeline_library") pipelineLibrary = true;
+                        else if (ext == "VK_KHR_swapchain") swapchain = true;
                     }
 
                     var features = new byte[55 * 4 + 64];
@@ -103,9 +112,14 @@ static class VulkanCheck
                     bool robustBufferAccess = BitConverter.ToUInt32(features, 0) != 0;
 
                     bool isGpu = type >= 1 && type <= 3;
-                    bool ok = isGpu && (major > 1 || (major == 1 && minor >= 3)) && robustness2 && robustBufferAccess;
-                    Console.WriteLine(string.Format("GPU: {0} | Vulkan {1}.{2} | robustness2: {3} | DXVK 2.7.1: {4}",
-                        name, major, minor, robustness2 ? "yes" : "no", ok ? "supported" : "not supported"));
+                    bool ok = isGpu && (major > 1 || (major == 1 && minor >= 3)) && robustness2 && maintenance5
+                              && pipelineLibrary && swapchain && robustBufferAccess && pushConstants >= 256;
+                    Console.WriteLine(string.Format("GPU: {0} | Vulkan {1}.{2} | robustness2: {3} | maintenance5: {4} | DXVK 2.7.1: {5}",
+                        name, major, minor, robustness2 ? "yes" : "no", maintenance5 ? "yes" : "no", ok ? "supported" : "not supported"));
+                    if (isGpu && !(pipelineLibrary && swapchain && robustBufferAccess && pushConstants >= 256))
+                        Console.WriteLine("  Missing: " + (pipelineLibrary ? "" : "VK_KHR_pipeline_library ") +
+                            (swapchain ? "" : "VK_KHR_swapchain ") + (robustBufferAccess ? "" : "robustBufferAccess ") +
+                            (pushConstants >= 256 ? "" : "256 bytes of push constants (has " + pushConstants + ")"));
                     supported |= ok;
                 }
             }

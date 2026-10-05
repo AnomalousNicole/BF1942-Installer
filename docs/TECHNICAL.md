@@ -60,9 +60,14 @@ Everything that depends on an optional component is wrapped in `#if Has_<id>` in
 
 - Vulkan API version **1.3** or higher
 - `VK_EXT_robustness2` or `VK_KHR_robustness2`
+- `VK_KHR_maintenance5` (core in Vulkan 1.4)
+- `VK_KHR_pipeline_library` and `VK_KHR_swapchain`
 - `robustBufferAccess`
+- at least 256 bytes of push constants (`maxPushConstantsSize`)
 
-Anything else means dgVoodoo2. The check's output is shown on the *Ready to Install* page and written to the setup log. `Setup.exe /RENDERER=dxvk` or `/RENDERER=dgvoodoo` skips the check.
+These match the adapter checks in DXVK 2.7.1 (`dxvk_device_info.cpp`). When DXVK finds no adapter it only writes `No adapters found` to `BF1942_d3d9.log` and the game shows a black screen, so a GPU that misses any of them must get dgVoodoo2. AMD Polaris (RX 400/500) is the known case: its drivers report Vulkan 1.3 but have no `maintenance5`.
+
+It returns `1` when no device does, which means dgVoodoo2. If the check fails (the helper can't be extracted or started, which is usually an antivirus blocking it, or it returns `2`), Setup asks the player which renderer to install, defaulting to DXVK (silent installs take the default). The check's output is shown on the *Ready to Install* page and written to the setup log. `Setup.exe /RENDERER=dxvk` or `/RENDERER=dgvoodoo` skips the check.
 
 | Renderer | Installed files |
 |---|---|

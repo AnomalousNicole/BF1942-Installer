@@ -433,6 +433,7 @@ var
   Forced: String;
   Output: TExecOutput;
   Code, I: Integer;
+  CheckFailed: Boolean;
 begin
   if RendererDetected then Exit;
   RendererDetected := True;
@@ -447,11 +448,15 @@ begin
   end else if Forced = 'dgvoodoo' then
     RendererInfo := 'Forced by /RENDERER=dgvoodoo'
   else begin
+    { Only exit code 1 means the GPU can't run DXVK. If the check itself fails (often an
+      antivirus blocking VulkanCheck.exe) the answer is unknown, so the user picks instead }
+    CheckFailed := True;
     try
       ExtractTemporaryFile('VulkanCheck.exe');
       if ExecAndCaptureOutput(ExpandConstant('{tmp}\VulkanCheck.exe'), '', '', SW_HIDE,
                               ewWaitUntilTerminated, Code, Output) then begin
         DxvkSupported := (Code = 0);
+        CheckFailed := (Code <> 0) and (Code <> 1);
         for I := 0 to GetArrayLength(Output.StdOut) - 1 do
           if Trim(Output.StdOut[I]) <> '' then
             RendererInfo := RendererInfo + Trim(Output.StdOut[I]) + #13#10;
@@ -459,6 +464,20 @@ begin
         RendererInfo := 'Vulkan check could not run: ' + SysErrorMessage(Code);
     except
       RendererInfo := 'Vulkan check failed: ' + GetExceptionMessage;
+    end;
+
+    if CheckFailed then begin
+      { Most PCs today run DXVK, so it is the default (also for silent installs) }
+      DxvkSupported := SuppressibleMsgBox('Setup could not check whether this PC''s graphics card can run DXVK:' + #13#10 +
+        Trim(RendererInfo) + #13#10#13#10 +
+        'This is usually caused by antivirus software blocking Setup''s files. If it also blocks other files, ' +
+        'add an exclusion for this setup file and the game folder, then run Setup again.' + #13#10#13#10 +
+        'Install DXVK (recommended for most graphics cards from 2016 or later)?' + #13#10 +
+        'Choose No to install dgVoodoo2 instead.', mbConfirmation, MB_YESNO, IDYES) = IDYES;
+      if DxvkSupported then
+        RendererInfo := RendererInfo + 'DXVK chosen because the Vulkan check failed' + #13#10
+      else
+        RendererInfo := RendererInfo + 'dgVoodoo2 chosen because the Vulkan check failed' + #13#10;
     end;
   end;
   Log('Renderer detection: DXVK supported = ' + IntToStr(Ord(DxvkSupported)) + #13#10 + RendererInfo);

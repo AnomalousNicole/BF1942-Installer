@@ -42,8 +42,9 @@ cd BF1942-Installer
 For the people who run your `Setup.exe`:
 
 **Graphics fix, chosen automatically**
-- DXVK is installed when the graphics card supports it: Vulkan 1.3 with robustness2.
+- DXVK is installed when the graphics card supports it: Vulkan 1.3 with robustness2 and maintenance5 (the features DXVK 2.7 needs).
 - Otherwise dgVoodoo2 is installed, pre-configured with 4x MSAA and 16x anisotropic filtering.
+- If the check can't run at all (usually an antivirus blocking it), Setup asks which one to install, with DXVK as the default.
 
 **Windows parts, only if they're missing**
 - DirectPlay
