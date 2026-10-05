@@ -19,6 +19,16 @@ This repository contains **no unmodified game files** The third-party binaries i
 | Visual C++ Redistributable (x86) | latest | Microsoft | Microsoft redistributable terms | https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist |
 | .NET 8 Desktop Runtime (x64) | 8.0.31 | Microsoft | MIT (.NET) / Microsoft terms | https://dotnet.microsoft.com/download/dotnet/8.0 |
 
+## Inside Battlefield 1942 Options
+
+[BF1942-Installer-Options](https://github.com/AnomalousNicole/BF1942-Installer-Options) (MIT, a git submodule at `installer\BF1942Options`) is published self-contained, so the installer also ships:
+
+| Component | Author | License | Source |
+|---|---|---|---|
+| .NET 10 runtime | Microsoft | MIT | https://github.com/dotnet/runtime |
+| Windows App SDK (WinUI 3) | Microsoft | MIT | https://github.com/microsoft/WindowsAppSDK |
+| WebView2 loader (`WebView2Loader.dll`, `Microsoft.Web.WebView2.Core.dll`, pulled in by WinUI) | Microsoft | WebView2 SDK license (redistributable) | https://www.nuget.org/packages/Microsoft.Web.WebView2 |
+
 ## Included in this repository
 
 | Component | Files | Author | License | Source code |

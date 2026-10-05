@@ -70,7 +70,7 @@ Borderless1942 and Battlefield Rich Presence are hidden on 32-bit Windows. Anyth
 
 ![Select Additional Tasks](images/wizard/09-additional-tasks.jpg)
 
-Desktop shortcuts and the intro videos. The Borderless1942 shortcut only appears when that component is selected, and **Skip the intro videos** adds `+restart 1` to the shortcut rather than deleting anything. Setting `serverAddress` in `config.json` adds one more shortcut here, which joins your server directly.
+Desktop shortcuts and the intro videos. The Borderless1942 shortcut only appears when that component is selected, and **Skip the intro videos** adds `+restart 1` to the shortcut rather than deleting anything. Setting `serverAddress` in `config.json` adds one more shortcut here, which joins your server directly. **Create a desktop shortcut to Battlefield 1942 Options** (ticked by default) adds the app that turns the fixes and extras on or off after install; its Start menu shortcut is always created. The screenshot was taken before that option was added.
 
 ## 6. Ready to Install
 
@@ -99,4 +99,4 @@ Extracts the game and the selected components, then runs the prerequisites that 
 
 ![Completing](images/wizard/14-finish.jpg)
 
-Offers to launch the game. The uninstaller is registered with Windows, so the install can be removed from Settings > Apps > Installed apps.
+Offers to launch the game, which then runs as the player rather than as administrator. The uninstaller is registered with Windows, so the install can be removed from Settings > Apps > Installed apps.

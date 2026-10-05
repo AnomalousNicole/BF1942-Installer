@@ -71,7 +71,8 @@ DisableWelcomePage=no
 DisableProgramGroupPage=yes
 DisableReadyPage=no
 PrivilegesRequired=admin
-MinVersion=10.0
+; Windows 10 version 1809 (build 17763) or later: the oldest Windows that BF1942 Options (WinUI) runs on
+MinVersion=10.0.17763
 WizardStyle=modern
 #if GameIcon != ""
 SetupIconFile={#GameIcon}
@@ -177,6 +178,8 @@ Name: "servericon"; Description: "Create a ""{#ServerName}"" desktop shortcut (j
 #if Has_borderless1942
 Name: "borderlessicon"; Description: "Create a desktop shortcut for Borderless1942 (uses your primary monitor resolution)"; GroupDescription: "Shortcuts:"; Components: borderless
 #endif
+; Ticked by default; untick it for no desktop shortcut (the Start menu one is always there)
+Name: "optionsicon"; Description: "Create a desktop shortcut to Battlefield 1942 Options, the app that turns the fixes and extras on or off after install"; GroupDescription: "Shortcuts:"
 Name: "skipintro"; Description: "Skip the intro videos (adds +restart 1 to the shortcut)"; GroupDescription: "Game options:"
 
 [Files]
@@ -187,6 +190,54 @@ Source: "{#BuildDir}\VulkanCheck.exe"; Flags: dontcopy
 #ifndef QUICK
 ; The game folder's own Font.rfa is never shipped - Font.rfa always comes from the Font component
 Source: "{#GameDir}\*"; Excludes: "\Mods\bf1942\Archives\Font.rfa,\Tools"; DestDir: "{app}"; Components: game; Flags: ignoreversion recursesubdirs createallsubdirs
+#endif
+
+; Troubleshooting guide, next to the game manual. build.ps1 prints it from docs\manual into build\manual
+Source: "{#ManualDir}\Battlefield 1942 Troubleshooting.pdf"; DestDir: "{app}\manual"; Flags: ignoreversion
+
+; BF1942 Options (a WinUI app, installer\BF1942Options) turns the fixes and extras on and off after install.
+; build.ps1 publishes it self-contained to build\options; it runs from {app}\Options\App. It switches between the
+; copies kept in {app}\Options: every fix it can turn on, and the original game files that the extras replace.
+; Files that are also installed elsewhere are stored once in the setup file.
+Source: "{#OptionsDir}\*"; DestDir: "{app}\Options\App"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#BuildDir}\VulkanCheck.exe"; DestDir: "{app}\Options"; Flags: ignoreversion
+Source: "{#Deps}\bf42pp\*"; DestDir: "{app}\Options\BF42++"; Flags: ignoreversion
+Source: "{#Deps}\hrtf\*"; Excludes: "*.txt"; DestDir: "{app}\Options\DSOAL"; Flags: ignoreversion
+Source: "{#Deps}\dxvk\*"; DestDir: "{app}\Options\DXVK"; Flags: ignoreversion
+Source: "{#Deps}\dgvoodoo2\*"; DestDir: "{app}\Options\dgVoodoo2"; Flags: ignoreversion
+#if Has_borderless1942
+Source: "{#Deps}\borderless1942\Borderless1942.exe"; DestDir: "{app}\Options\Borderless1942"; Check: IsWin64; Flags: ignoreversion
+#endif
+#if Has_compat
+Source: "{#Extras}\CompatProfile\BF1942.sdb"; DestDir: "{app}\Options\Compatibility Profile"; Flags: ignoreversion
+#endif
+#ifndef QUICK
+  #if Has_hiresui
+Source: "{#Extras}\HiResUI\menu.rfa"; DestDir: "{app}\Options\Higher resolution UI"; Flags: ignoreversion
+Source: "{#GameDir}\Mods\bf1942\Archives\menu.rfa"; DestDir: "{app}\Options\Originals"; Flags: ignoreversion
+  #endif
+  #if Has_bobsiren
+Source: "{#Deps}\bobsiren\Battle_of_Britain.rfa"; DestDir: "{app}\Options\Battle of Britain disable siren"; Flags: ignoreversion
+Source: "{#GameDir}\Mods\bf1942\Archives\bf1942\levels\Battle_of_Britain.rfa"; DestDir: "{app}\Options\Originals"; Flags: ignoreversion
+  #endif
+#endif
+#if Has_font_original
+Source: "{#Extras}\Fonts\Original\Font.rfa"; DestDir: "{app}\Options\Fonts\Original"; Flags: ignoreversion
+#endif
+#if Has_font_1x
+Source: "{#Extras}\Fonts\1x\Font.rfa"; DestDir: "{app}\Options\Fonts\1x"; Flags: ignoreversion
+#endif
+#if Has_font_2x
+Source: "{#Extras}\Fonts\2x\Font.rfa"; DestDir: "{app}\Options\Fonts\2x"; Flags: ignoreversion
+#endif
+#if Has_font_3x
+Source: "{#Extras}\Fonts\3x\Font.rfa"; DestDir: "{app}\Options\Fonts\3x"; Flags: ignoreversion
+#endif
+#if Has_font_35x
+Source: "{#Extras}\Fonts\3.5x\Font.rfa"; DestDir: "{app}\Options\Fonts\3.5x"; Flags: ignoreversion
+#endif
+#if Has_font_4x
+Source: "{#Extras}\Fonts\4x\Font.rfa"; DestDir: "{app}\Options\Fonts\4x"; Flags: ignoreversion
 #endif
 
 ; Required fixes (next to BF1942.exe)
@@ -259,6 +310,12 @@ Root: HKLM32; Subkey: "SOFTWARE\Electronic Arts\EA GAMES\Battlefield 1942\ergc";
 Root: HKLM32; Subkey: "{#StateKeyParent}"; Flags: uninsdeletekeyifempty
 #endif
 Root: HKLM32; Subkey: "{#StateKey}"; ValueType: string; ValueName: "Renderer"; ValueData: "{code:GetRendererName}"; Flags: uninsdeletekey
+; Read by BF1942 Options: the versions it shows, and whether its shortcuts skip the intro
+Root: HKLM32; Subkey: "{#StateKey}"; ValueType: string; ValueName: "VerBF42PP"; ValueData: "{#Ver_bf42pp}"; Flags: uninsdeletekey
+Root: HKLM32; Subkey: "{#StateKey}"; ValueType: string; ValueName: "VerDXVK"; ValueData: "{#Ver_dxvk}"; Flags: uninsdeletekey
+Root: HKLM32; Subkey: "{#StateKey}"; ValueType: string; ValueName: "VerDgVoodoo2"; ValueData: "{#Ver_dgvoodoo2}"; Flags: uninsdeletekey
+Root: HKLM32; Subkey: "{#StateKey}"; ValueType: string; ValueName: "SkipIntro"; ValueData: "1"; Tasks: skipintro; Flags: uninsdeletekey
+Root: HKLM32; Subkey: "{#StateKey}"; ValueType: string; ValueName: "SkipIntro"; ValueData: "0"; Tasks: not skipintro; Flags: uninsdeletekey
 #if Has_datafield42
 Root: HKLM32; Subkey: "{#StateKey}"; ValueType: string; ValueName: "DataField42"; ValueData: "1"; Components: datafield; Flags: uninsdeletekey
 #endif
@@ -280,6 +337,9 @@ Name: "{autodesktop}\Battlefield 1942"; Filename: "{app}\BF1942.exe"; WorkingDir
 #if Has_borderless1942
 Name: "{autodesktop}\Battlefield 1942 (Borderless)"; Filename: "{app}\Borderless1942.exe"; Parameters: "{code:GetBorderlessParams}"; WorkingDir: "{app}"; IconFilename: "{app}\BF1942.exe"; Tasks: borderlessicon
 #endif
+Name: "{autoprograms}\Battlefield 1942 Options"; Filename: "{app}\Options\App\BF1942 Options.exe"; WorkingDir: "{app}"; Comment: "Turn the Battlefield 1942 fixes and extras on or off"
+; Its name says what the app is for, as players see it on the desktop
+Name: "{autodesktop}\Battlefield 1942 Options - turn fixes and extras on or off"; Filename: "{app}\Options\App\BF1942 Options.exe"; WorkingDir: "{app}"; Comment: "Turn the Battlefield 1942 fixes and extras on or off"; Tasks: optionsicon
 #if ServerAddress != ""
 ; Always skips the intro and joins the configured server
 Name: "{autodesktop}\{#ServerName}"; Filename: "{app}\BF1942.exe"; Parameters: "+restart 1 +joinServer {#ServerAddress}"; WorkingDir: "{app}"; Tasks: servericon
@@ -306,14 +366,11 @@ Filename: "{tmp}\pb42\Punkbuster42.exe"; WorkingDir: "{app}"; StatusMsg: "Instal
 ; Punkbuster42 exits while its "PunkBuster Services" window (pbsvc.exe) is still open - wait for the user to finish it
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Start-Sleep -Seconds 2; Get-Process pbsvc -ErrorAction SilentlyContinue | Wait-Process"""; StatusMsg: "Finish the PunkBuster Services window (click Install/Repair, then close it) to continue..."; Components: punkbuster; Flags: runhidden waituntilterminated
 #endif
-Filename: "{app}\BF1942.exe"; Parameters: "{code:GetLaunchParams}"; WorkingDir: "{app}"; Description: "Launch Battlefield 1942"; Flags: postinstall nowait skipifsilent unchecked
+Filename: "{app}\BF1942.exe"; Parameters: "{code:GetLaunchParams}"; WorkingDir: "{app}"; Description: "Launch Battlefield 1942"; Flags: postinstall nowait skipifsilent unchecked runasoriginaluser
 
 [UninstallRun]
-#if Has_compat
-; Unregister the compatibility profile before the game folder (and the .sdb) is deleted
-Filename: "{sys}\sdbinst.exe"; Parameters: "-q -u ""{app}\BF1942.sdb"""; RunOnceId: "RemoveCompatProfile64"; Components: compat; Check: IsWin64; Flags: runhidden waituntilterminated 64bit
-Filename: "{sys}\sdbinst.exe"; Parameters: "-q -u ""{app}\BF1942.sdb"""; RunOnceId: "RemoveCompatProfile32"; Components: compat; Check: not IsWin64; Flags: runhidden waituntilterminated
-#endif
+; Close BF1942 Options if it is still open, so its folder can be deleted
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Get-Process 'BF1942 Options' -ErrorAction SilentlyContinue | Where-Object Path -like '{app}\*' | Stop-Process -Force"""; RunOnceId: "CloseOptionsApp"; Flags: runhidden waituntilterminated
 #if Has_punkbuster42
 ; Close any PunkBuster setup window still running from the game folder so its pbsvc.exe can be deleted
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Get-Process pbsvc -ErrorAction SilentlyContinue | Where-Object Path -like '{app}\*' | Stop-Process -Force"""; RunOnceId: "ClosePunkBusterSetup"; Components: punkbuster; Flags: runhidden waituntilterminated
@@ -322,9 +379,18 @@ Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Get-NetFirewallApplicationFilter | Where-Object Program -like '{app}\*' | Get-NetFirewallRule | Remove-NetFirewallRule"""; RunOnceId: "RemoveFirewallRules64"; Check: IsWin64; Flags: runhidden waituntilterminated 64bit
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Get-NetFirewallApplicationFilter | Where-Object Program -like '{app}\*' | Get-NetFirewallRule | Remove-NetFirewallRule"""; RunOnceId: "RemoveFirewallRules32"; Check: not IsWin64; Flags: runhidden waituntilterminated
 
+[InstallDelete]
+; Installing over an earlier install: the files of the graphics fix that is not being installed go first, so
+; DXVK's d3d9.dll and dxvk.conf don't stay next to dgVoodoo2, or dgVoodoo.conf next to DXVK (d3d8.dll is replaced)
+Type: files; Name: "{app}\d3d9.dll"; Check: not UseDXVK
+Type: files; Name: "{app}\dxvk.conf"; Check: not UseDXVK
+Type: files; Name: "{app}\dgVoodoo.conf"; Check: UseDXVK
+
 [UninstallDelete]
 ; Remove everything in the install folder, including files the game/tools created after install
 Type: filesandordirs; Name: "{app}"
+; BF1942 Options creates this shortcut when Borderless1942 is turned on after install
+Type: files; Name: "{autodesktop}\Battlefield 1942 (Borderless).lnk"
 
 [Code]
 const
@@ -813,13 +879,19 @@ begin
   Result := PathEndsWith(Path, '\' + Tail, True);
 end;
 
+{ True for a last folder named "Battlefield 1942" or starting with it, such as "Battlefield 1942-Test" }
+function IsGameFolderName(const Name: String): Boolean;
+begin
+  Result := CompareText(Copy(Name, 1, Length('Battlefield 1942')), 'Battlefield 1942') = 0;
+end;
+
 function NormalizeInstallDir(Dir: String): String;
 begin
   Dir := RemoveBackslashUnlessRoot(Trim(Dir));
-  if EndsWithDir(Dir, 'EA Games\Battlefield 1942') then
+  if IsGameFolderName(ExtractFileName(Dir)) and EndsWithDir(ExtractFileDir(Dir), 'EA Games') then
     Result := Dir
-  else if EndsWithDir(Dir, 'Battlefield 1942') then
-    Result := PathCombine(ExtractFileDir(Dir), 'EA Games\Battlefield 1942')
+  else if IsGameFolderName(ExtractFileName(Dir)) then
+    Result := PathCombine(ExtractFileDir(Dir), 'EA Games\' + ExtractFileName(Dir))
   else if EndsWithDir(Dir, 'EA Games') then
     Result := PathCombine(Dir, 'Battlefield 1942')
   else
@@ -1050,10 +1122,14 @@ procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then begin
     ConfigureDisplayMode;
+    { Also when Borderless1942.exe is already there (turned on in BF1942 Options, or by an earlier install):
+      installing over it puts the game's own VideoDefault.con back, which would make the game fullscreen again }
 #if Has_borderless1942
-    if WizardIsComponentSelected('borderless') then
-      ConfigureBorderless;
+    if WizardIsComponentSelected('borderless') or FileExists(ExpandConstant('{app}\Borderless1942.exe')) then
+#else
+    if FileExists(ExpandConstant('{app}\Borderless1942.exe')) then
 #endif
+      ConfigureBorderless;
   end;
 end;
 
@@ -1249,6 +1325,18 @@ var
   Code, Tries: Integer;
 begin
   if CurUninstallStep <> usUninstall then Exit;
+  { A CD key that BF1942 Options generated after install goes too, like one Setup generated ([Registry] above) }
+  if RegQueryStringValue(HKLM32, StateKey, 'SerialCreated', Flag) and (Flag = '1') then begin
+    Log('Removing the CD key that BF1942 Options generated');
+    RegDeleteKeyIncludingSubkeys(HKLM32, ErgcKey);
+  end;
+  { The Compatibility Profile is registered while BF1942.sdb is in the game folder - by Setup or by BF1942 Options,
+    so this checks the file rather than the component. Unregister it before the folder is deleted }
+  if FileExists(ExpandConstant('{app}\BF1942.sdb')) then begin
+    if IsWin64 then Cmd := ExpandConstant('{sysnative}\sdbinst.exe') else Cmd := ExpandConstant('{sys}\sdbinst.exe');
+    Log('Removing the compatibility profile');
+    Exec(Cmd, '-q -u "' + ExpandConstant('{app}\BF1942.sdb') + '"', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  end;
   { DataField42 has its own uninstaller - run it so its files and registry entries go too }
   if RegQueryStringValue(HKLM32, StateKey, 'DataField42', Flag) and (Flag = '1') and
      FindDataField42Uninstaller(Cmd) and FileExists(Cmd) then begin

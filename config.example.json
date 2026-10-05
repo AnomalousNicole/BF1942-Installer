@@ -10,6 +10,7 @@
   "appendEAGamesFolder": true,
   "serverShortcutName": "",
   "serverAddress": "",
+  "discordUrl": "",
   "generateSerial": true,
   "registryStateKey": "SOFTWARE\\BF1942 Installer",
   "compression": "lzma2/ultra64",

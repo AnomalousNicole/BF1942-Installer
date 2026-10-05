@@ -1,0 +1,3 @@
+[submodule "installer/BF1942Options"]
+	path = installer/BF1942Options
+	url = https://github.com/AnomalousNicole/BF1942-Installer-Options.git

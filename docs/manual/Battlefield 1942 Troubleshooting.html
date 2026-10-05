@@ -1,0 +1,156 @@
+<!doctype html>
+<!-- Source of "Battlefield 1942 Troubleshooting.pdf", which setup puts in the game's manual folder.
+     build.ps1 prints this page to build\manual\ with Microsoft Edge on every build - edit this file, not the PDF. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Battlefield 1942 Troubleshooting</title>
+<style>
+  @page { size: Letter; margin: 0.7in 0.75in; }
+  body { font: 10.5pt/1.45 "Segoe UI", Arial, sans-serif; color: #1d1d1d; margin: 0; }
+  h1 { font-size: 21pt; margin: 0 0 2pt; color: #3d4a1f; }
+  .sub { color: #555; margin: 0 0 14pt; }
+  h2 { font-size: 13.5pt; color: #3d4a1f; border-bottom: 1.5pt solid #b9a46a; padding-bottom: 2pt; margin: 18pt 0 6pt; break-after: avoid; }
+  h3 { font-size: 11pt; margin: 10pt 0 3pt; break-after: avoid; }
+  p, ul, ol { margin: 0 0 6pt; }
+  ul, ol { padding-left: 18pt; }
+  li { margin-bottom: 3pt; }
+  code, .path { font-family: Consolas, "Courier New", monospace; font-size: 9.5pt; background: #f1eee4; padding: 0 2pt; border-radius: 2pt; }
+  pre { font-family: Consolas, "Courier New", monospace; font-size: 9pt; background: #f1eee4; border: 0.75pt solid #d8d0b8; padding: 5pt 7pt; white-space: pre-wrap; word-break: break-all; margin: 0 0 6pt; }
+  .box { border-left: 3pt solid #b9a46a; background: #faf8f1; padding: 5pt 9pt; margin: 6pt 0 8pt; }
+  table, pre, .box, li { break-inside: avoid; }
+  table { border-collapse: collapse; width: 100%; margin: 0 0 8pt; font-size: 9.5pt; }
+  th, td { border: 0.75pt solid #d8d0b8; padding: 3pt 6pt; text-align: left; vertical-align: top; }
+  th { background: #f1eee4; }
+</style>
+</head>
+<body>
+
+<h1>Battlefield 1942 Troubleshooting</h1>
+<p class="sub">For the Battlefield 1942 &amp; Expansions installer</p>
+
+<p>Many problems below are fixed in <b>Battlefield 1942 Options</b>, which the installer adds to the Start menu (and to your desktop, unless you unticked it). It switches the graphics fix between DXVK and dgVoodoo2, turns BF42++, 3D audio, Higher resolution UI, Borderless1942, the Battle of Britain siren and the Compatibility Profile on or off, changes the font size, sets the game to your screen's resolution and can generate a CD key. Close the game, make your changes and click <b>Apply</b>.</p>
+<p>For DataField42, Battlefield Rich Presence and PunkBuster, run the installer again and choose <b>Custom</b>. It installs over your existing game in the same folder, so you don't need to uninstall first. Running the installer again also puts back every fix, with the choices you make in it.</p>
+<p>The game folder is <span class="path">C:\EA Games\Battlefield 1942</span> unless you picked a different one during setup. This guide is in its <span class="path">manual</span> folder, next to the game manual.</p>
+
+<h2>Contents</h2>
+<ol>
+  <li>The game shows a black screen</li>
+  <li>The game crashes or closes by itself</li>
+  <li>Resolution, screen and text size</li>
+  <li>Alt-Tab minimizes the game</li>
+  <li>No sound, or sound from the wrong device</li>
+  <li>Can't see or join servers</li>
+  <li>Problems during setup</li>
+  <li>Uninstalling</li>
+  <li>Still stuck? Getting help</li>
+</ol>
+
+<section>
+<h2>1. The game shows a black screen</h2>
+<p>The installer picks one of two graphics fixes for your card:</p>
+<table>
+  <tr><th>Graphics fix</th><th>Used for</th></tr>
+  <tr><td><b>DXVK</b></td><td>Graphics cards with full Vulkan 1.3 support, which is most cards from 2016 or later</td></tr>
+  <tr><td><b>dgVoodoo2</b></td><td>Everything else, including AMD Radeon RX 400 and RX 500 cards</td></tr>
+</table>
+<p>A black screen at start-up almost always means DXVK was installed on a card or driver that can't run it.</p>
+<h3>Check</h3>
+<p>Open the game folder and look for <span class="path">BF1942_d3d9.log</span>. If it contains <code>No adapters found</code>, DXVK can't use your graphics card.</p>
+<h3>Fix</h3>
+<ol>
+  <li><b>Update your graphics driver</b> from AMD, NVIDIA or Intel, restart the PC and try again.</li>
+  <li>Still black? <b>Switch to dgVoodoo2.</b> Open <b>Battlefield 1942 Options</b>, pick <b>dgVoodoo2</b> under <b>Graphics fix</b> and click <b>Apply</b>. <b>Check my graphics card</b> runs the same check as setup and picks the right one for you.</li>
+</ol>
+<p>To go back to DXVK later, pick <b>DXVK</b> in the same place.</p>
+</section>
+
+<section>
+<h2>2. The game crashes or closes by itself</h2>
+<ol>
+  <li><b>Install the Compatibility Profile.</b> Open <b>Battlefield 1942 Options</b>, turn on <b>Compatibility Profile</b> and click <b>Apply</b>. It applies the Windows compatibility fixes recommended by PCGamingWiki. Only use it if the game crashes without it.</li>
+  <li><b>Turn off overlays</b> for the game, such as the Discord, Steam, NVIDIA or AMD overlays, and on-screen display tools like MSI Afterburner or RivaTuner. Old games often crash when one of them hooks in.</li>
+  <li><b>Check your antivirus.</b> If it has quarantined files from the game folder, restore them, add an exclusion for the game folder, and run the installer again to put back anything that was removed.</li>
+  <li><b>Don't set compatibility mode yourself.</b> If you ticked <b>Run this program in compatibility mode</b> in the properties of <span class="path">BF1942.exe</span> or a shortcut, untick it. The installer already sets up what the game needs.</li>
+</ol>
+</section>
+
+<section>
+<h2>3. Resolution, screen and text size</h2>
+<ul>
+  <li><b>Wrong resolution:</b> setup sets the game to your main screen's resolution and refresh rate at the time of install. If you have changed screens since, click <b>Use my screen's resolution</b> in <b>Battlefield 1942 Options</b>, or pick a resolution in the game under <b>Options</b> &gt; <b>Video</b>.</li>
+  <li><b>Game opens on the wrong screen:</b> make the screen you want to play on the <b>main display</b> in Windows (<b>Settings</b> &gt; <b>System</b> &gt; <b>Display</b>), then click <b>Use my screen's resolution</b> in <b>Battlefield 1942 Options</b>.</li>
+  <li><b>Text too small or too big:</b> pick a different <b>Font size</b> in <b>Battlefield 1942 Options</b>.</li>
+</ul>
+<table>
+  <tr><th>Font size</th><th>Made for</th></tr>
+  <tr><td>Original</td><td>800x600 and 1024x768</td></tr>
+  <tr><td>1x</td><td>1280x720 and 1366x768</td></tr>
+  <tr><td>2x (default)</td><td>1920x1080</td></tr>
+  <tr><td>3x</td><td>2560x1440</td></tr>
+  <tr><td>3.5x</td><td>3440x1440 (ultrawide) and 2560x1600</td></tr>
+  <tr><td>4x</td><td>3840x2160 (4K)</td></tr>
+</table>
+<ul>
+  <li><b>Blurry menus:</b> turn on <b>Higher resolution UI</b> in <b>Battlefield 1942 Options</b> for sharper menus and HUD.</li>
+</ul>
+</section>
+
+<section>
+<h2>4. Alt-Tab minimizes the game</h2>
+<p>That's how fullscreen works in Battlefield 1942. For a game you can switch away from without it minimizing, open <b>Battlefield 1942 Options</b> and turn on <b>Borderless1942</b> (64-bit Windows only). Then start the game with the <b>Battlefield 1942 (Borderless)</b> shortcut on your desktop.</p>
+</section>
+
+<section>
+<h2>5. No sound, or sound from the wrong device</h2>
+<ul>
+  <li>The game uses your Windows <b>default playback device</b> and picks it when it starts. Plug in your headset or speakers and set them as the default (right-click the speaker icon on the taskbar, <b>Sound settings</b>) <i>before</i> starting the game. Changing the device while the game is running doesn't move the sound.</li>
+  <li>3D positional audio (DSOAL and OpenAL Soft) works best with headphones. If the sound still doesn't work, try turning <b>3D positional audio</b> off in <b>Battlefield 1942 Options</b>.</li>
+  <li>Check that the game isn't muted in the Windows <b>Volume mixer</b>.</li>
+</ul>
+</section>
+
+<section>
+<h2>6. Can't see or join servers</h2>
+<ul>
+  <li><b>Server shortcut:</b> if your installer added a shortcut for a server to the desktop, it skips the intro and connects straight to that server.</li>
+  <li><b>Windows Firewall:</b> the first time you play online, Windows asks whether to allow Battlefield 1942 on networks. Click <b>Allow</b>. If you clicked <b>Cancel</b>, go to <b>Windows Security</b> &gt; <b>Firewall &amp; network protection</b> &gt; <b>Allow an app through firewall</b>, and tick Battlefield 1942 (<span class="path">BF1942.exe</span>) for <b>Private</b> and <b>Public</b>.</li>
+  <li><b>Kicked with a PunkBuster message:</b> that server needs PunkBuster. Run the installer again, choose <b>Custom</b> and tick <b>Punkbuster42</b>. When its window opens, click <b>Install/Repair</b>, then close the window to let setup finish.</li>
+  <li><b>The game says your CD key is missing or invalid:</b> open <b>Battlefield 1942 Options</b> and click <b>Generate a CD key</b>. The button only works when no valid key is registered.</li>
+  <li><b>Missing map or mod when joining:</b> the <b>DataField42</b> extra (choose <b>Custom</b>) downloads missing maps and mods automatically when you join a server.</li>
+</ul>
+</section>
+
+<section>
+<h2>7. Problems during setup</h2>
+<ul>
+  <li><b>"Windows protected your PC":</b> click <b>More info</b>, then <b>Run anyway</b>. The installer isn't code-signed, so Windows shows this for it.</li>
+  <li><b>Setup asks whether to install DXVK or dgVoodoo2:</b> its graphics check couldn't run, which is usually an antivirus blocking it. Pick <b>DXVK</b> (the default) for most graphics cards from 2016 or later, or <b>dgVoodoo2</b> for older cards and AMD RX 400/500 cards. If you get a black screen afterwards, see section 1. To stop the antivirus blocking the check next time, add an exclusion for the setup file and the game folder.</li>
+  <li><b>PunkBuster window:</b> setup waits while the PunkBuster window is open. Click <b>Install/Repair</b>, then close that window, and setup will finish.</li>
+  <li><b>Install folder:</b> <span class="path">EA Games\Battlefield 1942</span> is always added to the folder you choose. For example, <span class="path">D:\Games</span> becomes <span class="path">D:\Games\EA Games\Battlefield 1942</span>.</li>
+  <li><b>Setup failed or stopped:</b> every run writes a log file. Press <b>Win + R</b>, type <b>%TEMP%</b> and press <b>Enter</b>. The newest <b>Setup Log</b> file describes the last run. Include it when you ask for help.</li>
+</ul>
+</section>
+
+<section>
+<h2>8. Uninstalling</h2>
+<p>Go to <b>Settings</b> &gt; <b>Apps</b> &gt; <b>Installed apps</b>, find <b>Battlefield 1942 &amp; Expansions</b> and click <b>Uninstall</b>. It removes the game folder and everything the installer added, including the CD key if setup or Battlefield 1942 Options created it. DirectX, Visual C++ and DirectPlay stay, because other games may use them. PunkBuster's background services are only removed if no other PunkBuster game is found on your PC.</p>
+<div class="box">Uninstalling deletes the whole game folder, including anything you added to it yourself, such as screenshots, extra maps or mods. Copy anything you want to keep somewhere else first.</div>
+</section>
+
+<section>
+<h2>9. Still stuck? Getting help</h2>
+<p>Ask whoever gave you the installer, or the community you play with.</p>
+<p>Please include:</p>
+<ul>
+  <li>Your Windows version and graphics card</li>
+  <li>Whether setup asked you to choose between DXVK and dgVoodoo2, and what you picked</li>
+  <li>What went wrong, and any error message you saw (a screenshot helps)</li>
+  <li>If setup failed: the newest <b>Setup Log</b> file from <b>%TEMP%</b> (see section 7)</li>
+  <li>If you get a black screen: <span class="path">BF1942_d3d9.log</span> from the game folder</li>
+</ul>
+<p>See you on the battlefield!</p>
+</section>
+
+</body>
+</html>

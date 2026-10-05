@@ -91,6 +91,8 @@ It returns `1` when no device does, which means dgVoodoo2. If the check fails (t
 | `EA GAMES\Battlefield 1942\GAMEDIR` = `{app}` | `punkbuster` component | The value, then any empty parent keys |
 | `Electronic Arts\EA GAMES\Battlefield 1942\ergc` (default value) = random `[A-Z0-9]{22}` | `generateSerial` is on and no valid serial exists | Only if the installer created it |
 | `<registryStateKey>\Renderer`, `DataField42`, `RichPresence`, `PunkBuster` | Always / per component | The whole key |
+| `<registryStateKey>\VerBF42PP`, `VerDXVK`, `VerDgVoodoo2`, `SkipIntro` | Always, read by BF1942 Options | The whole key |
+| `<registryStateKey>\SerialCreated` = `1` | BF1942 Options generated a CD key | The whole key; the uninstaller then also deletes `ergc` |
 
 ### Display mode
 
@@ -114,14 +116,17 @@ When Borderless1942 is chosen, `VideoDefault.con` also gets `renderer.setFullScr
 | Battlefield 1942 | `+restart 1` if *Skip intro* is ticked |
 | *serverShortcutName* | `+restart 1 +joinServer <serverAddress>` (only when `serverAddress` is set) |
 | Battlefield 1942 (Borderless) | `-width <W> -height <H>`, plus `+restart 1` if *Skip intro* is ticked |
+| Battlefield 1942 Options (Start menu) and *Battlefield 1942 Options - turn fixes and extras on or off* (desktop, ticked by default) | `{app}\Options\App\BF1942 Options.exe` |
 
 ### Install folder
 
-With `appendEAGamesFolder`, the chosen folder is normalised to `…\EA Games\Battlefield 1942`. For example, `D:\Games` becomes `D:\Games\EA Games\Battlefield 1942`. The folder box shows the full path straight away: after **Browse...** (the picked folder is treated as the parent), when the user leaves the box after typing, and again on **Next**. While the user types, a *"Will install to: …"* line under the box shows where the game will really end up, so the rule is never a surprise. A path that already ends in `EA Games` or `Battlefield 1942` is completed rather than doubled.
+With `appendEAGamesFolder`, the chosen folder is normalised to `…\EA Games\Battlefield 1942`. For example, `D:\Games` becomes `D:\Games\EA Games\Battlefield 1942`. The folder box shows the full path straight away: after **Browse...** (the picked folder is treated as the parent), when the user leaves the box after typing, and again on **Next**. While the user types, a *"Will install to: …"* line under the box shows where the game will really end up, so the rule is never a surprise. A path that already ends in `EA Games` or `Battlefield 1942` is completed rather than doubled. A last folder that starts with `Battlefield 1942` keeps its name, so `C:\EA Games\Battlefield 1942-Test` stays as it is, and `D:\Games\Battlefield 1942-Test` becomes `D:\Games\EA Games\Battlefield 1942-Test`.
 
 ---
 
 ## 4. Install order (`[Run]`)
+
+Before any file is copied, `[InstallDelete]` removes the files of the graphics fix that is not being installed (`d3d9.dll` and `dxvk.conf` for dgVoodoo2, `dgVoodoo.conf` for DXVK), so installing over an earlier install that used the other one leaves none of its files behind.
 
 1. `dism /online /enable-feature /featurename:DirectPlay /all`: only if the WMI `Win32_OptionalFeature` InstallState is not 1. Uses the 64-bit `dism` on x64.
 2. `DXSETUP.exe /silent`: only if any June 2010 x86 DLL is missing from `SysWOW64`.
@@ -138,7 +143,9 @@ With `appendEAGamesFolder`, the chosen folder is normalised to `…\EA Games\Bat
 
 | Step | Action |
 |---|---|
-| Compatibility Profile | `sdbinst -q -u BF1942.sdb` |
+| Compatibility Profile | `sdbinst -q -u BF1942.sdb`, whenever `BF1942.sdb` is in the game folder (Setup or BF1942 Options may have added it) |
+| CD key | `ergc` is deleted when `SerialCreated` is `1` (BF1942 Options generated it) |
+| Borderless shortcut | Deleted, also when BF1942 Options created it |
 | PunkBuster setup window | Any `pbsvc.exe` still running from `{app}` is closed |
 | Firewall | Every rule whose program is under `{app}\` is removed, such as the auto-created `bf1942` TCP/UDP rules |
 | DataField42 | Its own uninstaller runs with `/VERYSILENT`. The uninstaller waits until its uninstall entry is gone. |

@@ -5,7 +5,7 @@ Build your own Windows installer for **Battlefield 1942**, **The Road to Rome** 
 You bring the game files. One command downloads every fix from its official source, checks it, and produces a `Setup.exe` you can hand to players. It is a single file unless the build is too big for one; see [Very large installers](#very-large-installers).
 
 ```powershell
-git clone https://github.com/AnomalousNicole/BF1942-Installer.git
+git clone --recurse-submodules https://github.com/AnomalousNicole/BF1942-Installer.git
 cd BF1942-Installer
 .\build.ps1 -GameDir "C:\EA Games\Battlefield 1942"
 ```
@@ -30,6 +30,8 @@ cd BF1942-Installer
 - [Antivirus and build.ps1](#antivirus-and-buildps1)
 - [Distributing your installer](#distributing-your-installer)
 - [Updating components](#updating-components)
+- [Battlefield 1942 Options](#battlefield-1942-options)
+- [Troubleshooting guide](#troubleshooting-guide)
 - [Troubleshooting](#troubleshooting)
 - [How it works](#how-it-works)
 - [Credits](#credits)
@@ -58,10 +60,17 @@ For the people who run your `Setup.exe`:
 - **Display:** the game is set to the primary monitor's resolution and refresh rate (`game.setGameDisplayMode W H 32 Hz`).
 - **Audio:** HRTF 3D audio through DSOAL + OpenAL Soft, and the BF42++ client improvements.
 
+**Battlefield 1942 Options**
+- A WinUI app on the Start menu and, unless the player unticks it, the desktop as "Battlefield 1942 Options - turn fixes and extras on or off", that turns the fixes and extras on or off after install, without the setup file. See [Battlefield 1942 Options](#battlefield-1942-options).
+
+**Troubleshooting guide**
+- `manual\Battlefield 1942 Troubleshooting.pdf` in the game folder, next to the game manual.
+
 **Shortcuts**
 - A desktop shortcut, with an option to skip the intro.
 - An optional "join my server" shortcut.
 - A Borderless1942 shortcut at the monitor's native resolution.
+- A "Battlefield 1942 Options - turn fixes and extras on or off" shortcut (ticked by default; the Start menu shortcut is always created).
 
 **Clean uninstall.** The uninstaller removes:
 - Every file and registry entry the installer created.
@@ -86,6 +95,8 @@ Eight pages, from Welcome to Finish. **[docs/WIZARD.md](docs/WIZARD.md) walks th
 | To build | |
 |---|---|
 | Windows 10 or 11 | PowerShell 5.1 (built in) or PowerShell 7 |
+| [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) | Builds BF1942 Options. Install it with `winget install --id Microsoft.DotNet.SDK.10 --exact` |
+| Microsoft Edge (built into Windows 10 and 11) | Prints the troubleshooting guide to PDF |
 | [Inno Setup 7](https://jrsoftware.org/isinfo.php) | Installed and kept on the latest 7.x release by `build.ps1` (needs [winget](https://learn.microsoft.com/windows/package-manager/winget/), built into Windows 10 and 11) |
 | Battlefield 1942 game folder | With `Mods\xpack1` (The Road to Rome) and `Mods\xpack2` (Secret Weapons of WWII) |
 | ~6 GB free disk space | Downloads, staging and output |
@@ -94,7 +105,7 @@ Eight pages, from Welcome to Finish. **[docs/WIZARD.md](docs/WIZARD.md) walks th
 
 | To install (your players) |
 |---|
-| Windows 10 or 11, 32-bit or 64-bit. Borderless1942 and Rich Presence are 64-bit only and are hidden on 32-bit Windows |
+| Windows 10 version 1809 or later, or Windows 11, 32-bit or 64-bit. 1809 is the oldest Windows that BF1942 Options runs on, so Setup requires it. Borderless1942 and Rich Presence are 64-bit only and are hidden on 32-bit Windows |
 | Administrator rights |
 | ~4 GB free disk space |
 
@@ -108,9 +119,10 @@ Eight pages, from Welcome to Finish. **[docs/WIZARD.md](docs/WIZARD.md) walks th
    ```
 2. **Clone the repository:**
    ```powershell
-   git clone https://github.com/AnomalousNicole/BF1942-Installer.git
+   git clone --recurse-submodules https://github.com/AnomalousNicole/BF1942-Installer.git
    cd BF1942-Installer
    ```
+   `installer\BF1942Options` is a git submodule ([BF1942-Installer-Options](https://github.com/AnomalousNicole/BF1942-Installer-Options)). Without `--recurse-submodules`, `build.ps1` fetches it on the first build.
 3. **Point it at your game.** Either copy the game folder to `game\` inside the repository, or pass `-GameDir` in step 5.
 4. *(Optional)* Add artwork to [`branding\`](branding/README.md). The optional extras in [`extras\`](extras/README.md) are already included.
 5. **Build:**
@@ -143,6 +155,7 @@ Eight pages, from Welcome to Finish. **[docs/WIZARD.md](docs/WIZARD.md) walks th
 | `appendEAGamesFolder` | `true` | Always install into `<chosen folder>\EA Games\Battlefield 1942`. Picking `C:\Temp` with **Browse...** shows `C:\Temp\EA Games\Battlefield 1942` right away, and a *"Will install to: …"* line under the box follows what the user types. |
 | `serverShortcutName` | *(empty)* | Name of the "join server" desktop shortcut. |
 | `serverAddress` | *(empty)* | `ip:port` to join, for example `203.0.113.10:14567`. Leave empty for no server shortcut. |
+| `discordUrl` | *(empty)* | An invite to your community's Discord, for example `https://discord.gg/abc123`. BF1942 Options shows a **Join our Discord** button when it is set. |
 | `generateSerial` | `true` | Register a random serial when none is present. |
 | `registryStateKey` | `SOFTWARE\BF1942 Installer` | Registry key (32-bit HKLM) where the installer records what it installed. |
 | `compression` | `lzma2/ultra64` | Inno Setup compression. `lzma2/max` needs less RAM but produces a bigger file. |
@@ -367,6 +380,36 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for adding new components.
 
 ---
 
+## Battlefield 1942 Options
+
+`installer\BF1942Options` is a WinUI 3 app that lets players change their mind after install. Its source is in [BF1942-Installer-Options](https://github.com/AnomalousNicole/BF1942-Installer-Options), which this repository includes as a git submodule. It has one page with every option on it, in a Battlefield 1942 theme (brass and khaki on near-black, with your `branding\` art down the left side when you supply it), and uses the game's `bf1942.ico`, like Setup.
+
+| Can be switched | How |
+|---|---|
+| Graphics fix: DXVK or dgVoodoo2 | Swaps `d3d8.dll` / `d3d9.dll` and their config. **Check my graphics card** runs `VulkanCheck.exe`, like Setup |
+| BF42++ and 3D positional audio | Each on its own. With BF42++ on, DSOAL is `dsound_next.dll` behind BF42++'s `dsound.dll`; without it, DSOAL is `dsound.dll`. `bf42++.ini` and `alsoft.ini` are kept |
+| Font size | Copies one of the `Font.rfa` files in `extras\Fonts` |
+| Higher resolution UI, Battle of Britain siren | Swaps `menu.rfa` / `Battle_of_Britain.rfa` with the modified or original copy |
+| Borderless1942 | Its exe, its desktop shortcut and `renderer.setFullScreen` in `VideoDefault.con` |
+| Compatibility Profile | `sdbinst` registers or removes `BF1942.sdb` |
+| Skip the intro videos | `+restart 1` on the Battlefield 1942 desktop shortcuts |
+| Resolution | **Use my screen's resolution** rewrites every `Video*.con`, like Setup |
+| CD key | **Generate a CD key**, only when no valid key is registered (hidden when `generateSerial` is off). The uninstaller removes a key it generated |
+
+Extras your build left out show as *Not included in this installer*. DirectX, Visual C++, DirectPlay and the game itself always stay installed. DataField42, Battlefield Rich Presence and PunkBuster are separate programs, so they are added by running Setup again (Custom) and removed in Settings > Apps.
+
+- **Where things live.** Setup installs the app in `{app}\Options\App` and keeps every fix it can switch, plus the game's original `menu.rfa` and `Battle_of_Britain.rfa`, in `{app}\Options`. Inno Setup stores identical source files once, so the setup file only grows by the app (about 17 MB).
+- **Left side.** The installer's art (or the game's name), then **Play**, **Join** (only with a server shortcut), **Join our Discord** (only with `discordUrl`), **Open game folder** and **Troubleshooting guide**, and the game folder. The app runs as administrator, so it starts the game, the folder and the guide through Explorer, which runs them as the signed-in user.
+- **Layout.** Two columns of cards that end on the same line. The window opens at the size that shows everything, can be made bigger (the page grows with it) but not smaller, and only on a screen too small for it does the options area turn into one scrolling column; the title, Apply and Close always stay in view.
+- **What is on** is read from the game folder every time: a file counts as on when it is identical to its copy in `Options`.
+- **Admin rights.** The app asks for them (UAC), because it writes to the game folder and to `registryStateKey`, and runs `sdbinst`. It logs every change to `{app}\Options\Options.log`.
+- **Build.** `build.ps1` publishes it with the .NET 10 SDK (32-bit, self-contained and trimmed, so players need no .NET or Windows App SDK) to `build\options`, about 70 MB, and adds `options.json` (`registryStateKey`, `generateSerial`, the server shortcut's name and address, and `discordUrl`) and `cover.bmp` (your largest `branding\WizardImage*.bmp`).
+- **Running Setup again** puts back every required fix and the extras it was told to install.
+
+## Troubleshooting guide
+
+Setup installs `manual\Battlefield 1942 Troubleshooting.pdf` in the game folder. Its source is `docs\manual\Battlefield 1942 Troubleshooting.html`: `build.ps1` prints every page in `docs\manual` to a PDF in `build\manual` with Microsoft Edge (headless, with a profile of its own), so edit the HTML and rebuild.
+
 ## Troubleshooting
 
 | Problem | Fix |
@@ -406,13 +449,15 @@ BF1942-Installer/
 ├── components.json           # Pinned component versions, URLs and SHA-256
 ├── installer/
 │   ├── BF1942-Installer.iss  # Inno Setup script
-│   └── VulkanCheck.cs        # DXVK capability check (compiled by build.ps1)
+│   ├── VulkanCheck.cs        # DXVK capability check (compiled by build.ps1)
+│   └── BF1942Options/        # Battlefield 1942 Options (git submodule: BF1942-Installer-Options)
 ├── components/               # Config files (+ LGPL audio libraries) copied into the install
 ├── extras/                   # Optional files with no official download
 ├── branding/                 # Your optional artwork (git-ignored)
 └── docs/
     ├── TECHNICAL.md          # How it works, in detail
-    └── WIZARD.md             # The wizard, page by page, with screenshots
+    ├── WIZARD.md             # The wizard, page by page, with screenshots
+    └── manual/               # The troubleshooting guide (HTML), printed to PDF for the game's manual folder
 ```
 
 ---
