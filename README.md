@@ -95,6 +95,7 @@ Eight pages, from Welcome to Finish. **[docs/WIZARD.md](docs/WIZARD.md) walks th
 | To build | |
 |---|---|
 | Windows 10 or 11 | PowerShell 5.1 (built in) or PowerShell 7 |
+| [Git](https://git-scm.com/) | To clone the repository with its BF1942 Options submodule (a ZIP download from GitHub leaves `installer\BF1942Options` empty) |
 | [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) | Builds BF1942 Options. Install it with `winget install --id Microsoft.DotNet.SDK.10 --exact` |
 | Microsoft Edge (built into Windows 10 and 11) | Prints the troubleshooting guide to PDF |
 | [Inno Setup 7](https://jrsoftware.org/isinfo.php) | Installed and kept on the latest 7.x release by `build.ps1` (needs [winget](https://learn.microsoft.com/windows/package-manager/winget/), built into Windows 10 and 11) |
@@ -428,6 +429,9 @@ Setup installs `manual\Battlefield 1942 Troubleshooting.pdf` in the game folder.
 | Installer over 4 GB | `build.ps1` splits it into `Setup.exe` + `.bin` files automatically. See [Very large installers](#very-large-installers) |
 | Players get the wrong renderer | They can run `Setup.exe /RENDERER=dxvk` or `/RENDERER=dgvoodoo` |
 | Install problems | The setup log is at `%TEMP%\Setup Log YYYY-MM-DD #NNN.txt` |
+| `.NET SDK 10 was not found` | `winget install --id Microsoft.DotNet.SDK.10 --exact` - it builds BF1942 Options |
+| `The BF1942 Options source is missing` | `installer\BF1942Options` is a git submodule. In a clone, run `git submodule update --init`; after a ZIP download, clone the repository with `git clone --recurse-submodules` instead |
+| `Microsoft Edge was not found` / `Edge did not print` | Edge prints the troubleshooting guide to PDF. Install or repair Microsoft Edge, then build again |
 
 ---
 

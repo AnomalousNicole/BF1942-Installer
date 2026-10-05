@@ -100,6 +100,10 @@ $ProgressPreference = 'SilentlyContinue'   # Invoke-WebRequest is very slow with
 $Root     = $PSScriptRoot
 # (Windows PowerShell 5.1 does not set $PSScriptRoot yet while evaluating param() defaults)
 if (-not $Config) { $Config = Join-Path $Root 'config.json' }
+# A relative -Config or -GameDir is relative to PowerShell's current folder, like any other command; .NET file
+# methods would use the process's current folder instead
+else { $Config = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Config) }
+if ($GameDir) { $GameDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($GameDir) }
 $BuildDir = Join-Path $Root 'build'
 $CacheDir = Join-Path $BuildDir 'cache'
 $DepsDir  = Join-Path $BuildDir 'deps'
@@ -798,7 +802,7 @@ if (-not (Test-Path -LiteralPath $optionsProject)) {
     & git -C $Root submodule update --init 2>&1 | ForEach-Object { Write-Info "| $_" }
     $ErrorActionPreference = 'Stop'
     if (-not (Test-Path -LiteralPath $optionsProject)) {
-        Stop-Build "The BF1942 Options source is missing (installer\BF1942Options is a git submodule).`n       Run: git submodule update --init"
+        Stop-Build "The BF1942 Options source is missing (installer\BF1942Options is a git submodule).`n       In a git clone, run: git submodule update --init`n       A ZIP download from GitHub leaves it empty - clone the repository with git --recurse-submodules instead."
     }
 }
 if (Test-Path -LiteralPath $OptionsDir) { Remove-Item -LiteralPath $OptionsDir -Recurse -Force }

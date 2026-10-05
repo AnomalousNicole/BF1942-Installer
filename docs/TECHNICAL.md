@@ -14,9 +14,13 @@ flowchart LR
     C[components\&lt;id&gt;\] --> S
     E[extras\] --> G
     V[VulkanCheck.cs] --> VC[csc /platform:x86<br/>build\VulkanCheck.exe]
+    M[docs\manual\*.html] --> P[Edge --print-to-pdf<br/>build\manual]
+    AP[installer\BF1942Options<br/>submodule] --> OP[dotnet publish<br/>build\options]
     S --> G[build\generated.iss]
     G --> I[ISCC<br/>installer\BF1942-Installer.iss]
     VC --> I
+    P --> I
+    OP --> I
     I --> O[output\&lt;name&gt;.exe]
 ```
 
@@ -41,10 +45,11 @@ flowchart LR
    - `File_<id>`
 
    Text values are sanitised: quotes become typographic quotes so they are safe inside ISPP and Pascal strings.
-7. **Compile.** `ISCC installer\BF1942-Installer.iss`, with `/DQUICK` when `-Quick` is used (no game files). LZMA2 compresses the data in 256 MB blocks, one block thread per CPU thread as long as there is about 1.5 GB of free RAM for each (`LzmaThreads` in `generated.iss`). `-Smallest` instead compresses one stream with a 1 GB dictionary (`LzmaDict`), the largest a 32-bit Setup supports: about 5% smaller and 6-7 times slower. Measured with Inno Setup 7.1 on a 16-thread PC and 2,367 MB of game data plus extras: 4 threads took 231 s, 16 threads 136 s (identical output), and `-Smallest` 954 s (1,974 MB down to 1,871 MB). Dictionaries of 256 MB and 512 MB in a single stream saved only 7 MB and 62 MB.
+7. **Troubleshooting guide and BF1942 Options.** Every page in `docs\manual` is printed to a PDF of the same name in `build\manual` with headless Microsoft Edge (a profile of its own in `build\edge-profile`). BF1942 Options is published from the `installer\BF1942Options` submodule ([BF1942-Installer-Options](https://github.com/AnomalousNicole/BF1942-Installer-Options)) with `dotnet publish` (.NET 10 SDK; `git submodule update --init` runs first if a clone left the folder empty) to `build\options`, with the game's `bf1942.ico` when there is one. `options.json` (`registryStateKey`, `generateSerial`, the server shortcut's name and address, `discordUrl`) and `cover.bmp` (the largest `branding\WizardImage*.bmp`) are written next to it.
+8. **Compile.** `ISCC installer\BF1942-Installer.iss`, with `/DQUICK` when `-Quick` is used (no game files). LZMA2 compresses the data in 256 MB blocks, one block thread per CPU thread as long as there is about 1.5 GB of free RAM for each (`LzmaThreads` in `generated.iss`). `-Smallest` instead compresses one stream with a 1 GB dictionary (`LzmaDict`), the largest a 32-bit Setup supports: about 5% smaller and 6-7 times slower. Measured with Inno Setup 7.1 on a 16-thread PC and 2,367 MB of game data plus extras: 4 threads took 231 s, 16 threads 136 s (identical output), and `-Smallest` 954 s (1,974 MB down to 1,871 MB). Dictionaries of 256 MB and 512 MB in a single stream saved only 7 MB and 62 MB.
 
    Before compiling, the script decides between a single `Setup.exe` (up to 4,200,000,000 bytes) and a split build (`/DSPAN`, `DiskSpanning=yes`, `.bin` slices of 2,100,000,000 bytes). It predicts the compressed size from `build\size-history.json` (this PC's earlier builds) or, before the first build, from the committed `size-seed.json`, whose ratios are measured on the MoonGamers build of this installer rather than on a build of the template and are therefore only an estimate. It compiles a second time only when a single file turns out not to fit. The progress bar follows the `Compressing:` lines of ISCC, whose paths Inno Setup 7 prints in extended-length form (`\\?\C:\...`); the script strips that prefix before looking up each file's size. The script then prints the size and SHA-256 of the result. At the very end (after `-Package7z`, if given) it writes the build time and the name, size and SHA-256 of every output file (`Setup.exe`, any `.bin` slices and `.7z` volumes) to `output\<OutputBase>_YYYY-MM-DD_hh.mm.ss_AM.txt` (or `_PM`), named after the time the installer was written on a 12-hour clock, and deletes the hash files of earlier builds because the output they describe has been overwritten.
-8. **Log and stats.** Everything the script prints, the winget output and the full ISCC output of each compile attempt go to `build\build.log` (replaced on every run). After a successful build, `build\size-history.json` records the input and output size, whether the build was split, and the seconds per step.
+9. **Log and stats.** Everything the script prints, the winget output and the full ISCC output of each compile attempt go to `build\build.log` (replaced on every run). After a successful build, `build\size-history.json` records the input and output size, whether the build was split, and the seconds per step.
 
 Everything that depends on an optional component is wrapped in `#if Has_<id>` in the `.iss`, so a missing or excluded component leaves no trace in the installer.
 

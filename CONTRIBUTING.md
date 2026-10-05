@@ -11,6 +11,7 @@ Open an issue and include:
 - **For build problems:** `build\build.log`. It holds everything `build.ps1` printed, plus the full Inno Setup output.
 - **For install problems:** the setup log at `%TEMP%\Setup Log YYYY-MM-DD #NNN.txt`.
 - **For uninstall problems:** a log from `unins000.exe /LOG="%USERPROFILE%\Desktop\uninstall.log"`.
+- **For BF1942 Options problems:** `Options\Options.log` in the game folder, which lists every change the app made.
 
 ## Updating a bundled component
 
@@ -36,6 +37,18 @@ Only use **official** download locations, such as the project's GitHub releases 
    Fill in `author` (and `version` where there is one) - `build.ps1` prints them as credits while it stages the component.
 2. In `installer/BF1942-Installer.iss`, wrap every line that uses the component in `#if Has_<id>` … `#endif`. That covers `[Components]`, `[Files]`, `[Run]`, `[Registry]`, and the credits page in `InitializeWizard`.
 3. If the component has its own uninstaller, remove it in `CurUninstallStepChanged`.
+4. If players should be able to turn it on or off after install, add its files to the library in `[Files]` (under `{app}\Options`) and a switch to BF1942 Options (see below).
+
+## Changing BF1942 Options
+
+The app's source is in [BF1942-Installer-Options](https://github.com/AnomalousNicole/BF1942-Installer-Options), which this repository includes as a git submodule at `installer\BF1942Options`. Make app changes there (with their own pull request), then update the submodule here:
+
+```powershell
+git -C installer\BF1942Options pull
+git add installer\BF1942Options
+```
+
+and test the change through a full `build.ps1` build, an install and an uninstall.
 
 ## Script conventions
 
