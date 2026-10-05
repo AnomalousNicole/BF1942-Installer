@@ -354,8 +354,12 @@ Filename: "{tmp}\VC_redist.x86.exe"; Parameters: "{code:GetVCRedistParams}"; Sta
 Filename: "{sys}\sdbinst.exe"; Parameters: "-q ""{app}\BF1942.sdb"""; StatusMsg: "Installing the Battlefield 1942 compatibility profile..."; Components: compat; Check: IsWin64; Flags: runhidden waituntilterminated 64bit
 Filename: "{sys}\sdbinst.exe"; Parameters: "-q ""{app}\BF1942.sdb"""; StatusMsg: "Installing the Battlefield 1942 compatibility profile..."; Components: compat; Check: not IsWin64; Flags: runhidden waituntilterminated
 #endif
+; DataField42 is already installed in this folder (installing over an earlier install): BF1942.exe was just replaced,
+; so only DataField42's patch to it, which makes the game start DataField42 for a missing map, is applied again.
+; Also when this build leaves DataField42 out, as the player may have installed it there
+Filename: "{app}\DataField42.exe"; Parameters: "install"; WorkingDir: "{app}"; StatusMsg: "Setting up DataField42 again..."; Check: DataField42PatchNeeded; Flags: waituntilterminated
 #if Has_datafield42
-Filename: "{tmp}\{#File_datafield42}"; Parameters: "/SILENT /SUPPRESSMSGBOXES /NORESTART /SP- /DIR=""{app}"""; StatusMsg: "Installing DataField42..."; Components: datafield; Flags: waituntilterminated
+Filename: "{tmp}\{#File_datafield42}"; Parameters: "/SILENT /SUPPRESSMSGBOXES /NORESTART /SP- /DIR=""{app}"""; StatusMsg: "Installing DataField42..."; Components: datafield; Check: DataField42SetupNeeded; AfterInstall: CloseDataField42; Flags: waituntilterminated
 #endif
 #if Has_richpresence
 Filename: "{tmp}\{#File_dotnet8}"; Parameters: "{code:GetDotNetParams}"; StatusMsg: "Installing .NET 8 Desktop Runtime (needed by Battlefield Rich Presence)..."; Components: richpresence; Check: DotNetDesktop8Needed; AfterInstall: DotNetAfterInstall; Flags: waituntilterminated
@@ -400,6 +404,7 @@ const
   ErgcKey = 'SOFTWARE\Electronic Arts\EA GAMES\Battlefield 1942\ergc';
   PBGameKey = 'Punkbuster for Battlefield 1942';
   PBServicesKey = 'PunkBusterSvc';
+  DataField42Key = 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\DataField42_is1';   { its AppId is DataField42 }
 
 var
   Serial: String;
@@ -843,11 +848,94 @@ begin
         end;
 end;
 
-function FindDataField42Uninstaller(var Cmd: String): Boolean;
+{ ---------- DataField42 ---------- }
+
+{ DataField42 is installed for one game folder per PC. Run again, its installer stops with a message box that
+  /SUPPRESSMSGBOXES doesn't hide, which would hold up a silent install, so Setup checks first }
+
+{ The game folder DataField42 is installed in, or '' when it isn't installed }
+function DataField42Dir: String;
 var
-  KeyName: String;
+  Dir: String;
 begin
-  Result := FindUninstallEntry('datafield42', KeyName, Cmd);
+  Result := '';
+  if RegQueryStringValue(HKLM32, DataField42Key, 'Inno Setup: App Path', Dir) or
+     RegQueryStringValue(HKCU, DataField42Key, 'Inno Setup: App Path', Dir) then
+    Result := RemoveBackslashUnlessRoot(Dir);
+end;
+
+{ DataField42 is installed in this game folder, by an earlier install or by the player }
+function DataField42Here: Boolean;
+begin
+  Result := PathSame(DataField42Dir, ExpandConstant('{app}'));
+end;
+
+function DataField42SetupNeeded: Boolean;
+begin
+  Result := DataField42Dir = '';
+  if not Result then
+    Log('DataField42 is already installed for ' + DataField42Dir + ' - its installer is skipped');
+end;
+
+{ Installing over a game folder with DataField42: BF1942.exe was just replaced, so DataField42's patch to it, which
+  makes the game start DataField42 when a map or mod is missing, is applied again (what its installer does) }
+function DataField42PatchNeeded: Boolean;
+begin
+  Result := DataField42Here and FileExists(ExpandConstant('{app}\DataField42.exe'));
+end;
+
+function FindDataField42Uninstaller(var Cmd: String): Boolean;
+begin
+  Result := RegQueryStringValue(HKLM32, DataField42Key, 'UninstallString', Cmd) or
+            RegQueryStringValue(HKCU, DataField42Key, 'UninstallString', Cmd);
+  Cmd := RemoveQuotes(Cmd);
+end;
+
+{ Whether DataField42 runs from this game folder; with Close, it is ended as well }
+function DataField42Running(Close: Boolean): Boolean;
+var
+  Locator, Service, Items, Value: Variant;
+  Path: String;
+  I, Pid, Code: Integer;
+begin
+  Result := False;
+  try
+    Locator := CreateOleObject('WbemScripting.SWbemLocator');
+    Service := Locator.ConnectServer('.', 'root\CIMV2');
+    Items := Service.ExecQuery('SELECT ProcessId, ExecutablePath FROM Win32_Process WHERE Name = ''DataField42.exe''');
+    for I := 0 to Items.Count - 1 do begin
+      Value := Items.ItemIndex(I).ExecutablePath;
+      if not VarIsNull(Value) then begin
+        Path := Value;
+        if PathSame(Path, ExpandConstant('{app}\DataField42.exe')) then begin
+          Result := True;
+          if Close then begin
+            Pid := Items.ItemIndex(I).ProcessId;
+            Log('Closing DataField42 (process ' + IntToStr(Pid) + ')');
+            Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /PID ' + IntToStr(Pid), '', SW_HIDE, ewWaitUntilTerminated, Code);
+          end;
+        end;
+      end;
+    end;
+  except
+    Log('Could not look for DataField42: ' + GetExceptionMessage);
+  end;
+end;
+
+{ DataField42's installer starts DataField42 when it finishes, also when silent, and as administrator, as it runs
+  from this setup - a game joined from it would run as administrator too. The game starts DataField42 by itself
+  when a map or mod is missing, so it is closed. Also before DataField42 is uninstalled, so its files can go }
+procedure CloseDataField42;
+var
+  Tries: Integer;
+begin
+  if not DataField42Running(True) then Exit;
+  { taskkill returns before the process is gone }
+  Tries := 0;
+  while DataField42Running(False) and (Tries < 20) do begin
+    Sleep(250);
+    Tries := Tries + 1;
+  end;
 end;
 
 { ---------- Wizard ---------- }
@@ -1116,6 +1204,18 @@ begin
       Result := Result + Space + '.NET 8 Desktop Runtime (x64): already installed - skipped' + NewLine;
   end;
 #endif
+  { DataField42 is installed for one game folder per PC }
+  Info := DataField42Dir;
+  if DataField42PatchNeeded then
+    Result := Result + NewLine + 'DataField42:' + NewLine +
+              Space + 'already installed in this folder - kept, and set up again for BF1942.exe' + NewLine
+#if Has_datafield42
+  else if WizardIsComponentSelected('datafield') and (Info <> '') then
+    Result := Result + NewLine + 'DataField42:' + NewLine +
+              Space + 'already installed for ' + Info + ' - not added here, as it can only be installed once.' + NewLine +
+              Space + 'To use it with this folder, remove it in Settings > Apps first.' + NewLine
+#endif
+  ;
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -1337,9 +1437,11 @@ begin
     Log('Removing the compatibility profile');
     Exec(Cmd, '-q -u "' + ExpandConstant('{app}\BF1942.sdb') + '"', '', SW_HIDE, ewWaitUntilTerminated, Code);
   end;
-  { DataField42 has its own uninstaller - run it so its files and registry entries go too }
-  if RegQueryStringValue(HKLM32, StateKey, 'DataField42', Flag) and (Flag = '1') and
-     FindDataField42Uninstaller(Cmd) and FileExists(Cmd) then begin
+  { DataField42 has its own uninstaller. It runs when DataField42 is installed in this game folder - also when the
+    player installed it there, as the folder is deleted anyway - so its entry in Apps and its shortcuts go too.
+    DataField42 installed for another game folder stays. It is closed first, so its uninstaller can delete it }
+  if DataField42Here and FindDataField42Uninstaller(Cmd) and FileExists(Cmd) then begin
+    CloseDataField42;
     Log('Uninstalling DataField42: ' + Cmd);
     Exec(Cmd, '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART', '', SW_HIDE, ewWaitUntilTerminated, Code);
     { Inno Setup uninstallers relaunch themselves from %TEMP%; wait until it is really gone }
