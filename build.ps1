@@ -256,10 +256,14 @@ function Get-Download([string]$Url, [string]$FileName, [string]$Sha256, [bool]$N
     $algo = 'SHA-256'
     if ($Sha512) { $want = $Sha512.ToUpper(); $algo = 'SHA-512' }
     elseif ($Sha256) { $want = $Sha256.ToUpper() }
-    if (-not $NoCache -and (Test-Path -LiteralPath $path) -and -not $Force) {
+    # A pinned download (with a hash) comes from build\cache when its copy there is right. An unpinned one (the
+    # latest Visual C++ redistributable) is downloaded again for every build, so it is always the newest release;
+    # its cached copy is only used when the download fails, for example offline (its signature is still checked).
+    $cached = -not $NoCache -and (Test-Path -LiteralPath $path)
+    if ($want -and $cached -and -not $Force) {
         $bytes = $null
         try { $bytes = Read-AllBytes $path } catch { }
-        if ($bytes -and (-not $want -or (Get-BytesHash $bytes $algo) -eq $want)) { return , $bytes }
+        if ($bytes -and (Get-BytesHash $bytes $algo) -eq $want) { return , $bytes }
         Write-Note "$FileName in build\cache is unreadable or out of date - downloading it again"
     }
     Write-Info "Downloading $FileName"
@@ -268,6 +272,10 @@ function Get-Download([string]$Url, [string]$FileName, [string]$Sha256, [bool]$N
         $client.Headers['User-Agent'] = 'BF1942-Installer-build'
         $bytes = $client.DownloadData($Url)
     } catch {
+        if (-not $want -and $cached) {
+            Write-Note "Download failed ($($_.Exception.Message)) - using $FileName from build\cache, from an earlier build"
+            return , (Read-AllBytes $path)
+        }
         Stop-Build "Download failed: $Url`n       $($_.Exception.Message)"
     }
     if ($want) {
@@ -491,7 +499,8 @@ if (-not (Test-Path -LiteralPath $Config)) {
     Copy-Item -LiteralPath (Join-Path $Root 'config.example.json') -Destination $Config
     Write-Good "Created $(Split-Path $Config -Leaf) from config.example.json - edit it to customise your installer."
 }
-try { $script:Cfg = Get-Content -LiteralPath $Config -Raw | ConvertFrom-Json }
+# UTF-8 (Windows PowerShell 5.1 would read a file without a BOM as ANSI and garble names like "Café")
+try { $script:Cfg = Get-Content -LiteralPath $Config -Raw -Encoding UTF8 | ConvertFrom-Json }
 catch { Stop-Build "$(Split-Path $Config -Leaf) is not valid JSON: $($_.Exception.Message)" }
 
 # Every installer needs its own AppId, otherwise it would upgrade/uninstall someone else's install
@@ -499,9 +508,11 @@ $appId = "$(Get-Setting 'appId' '')".Trim('{', '}', ' ')
 $parsed = [guid]::Empty
 if (-not [guid]::TryParse($appId, [ref]$parsed)) {
     $appId = [guid]::NewGuid().ToString().ToUpper()
-    $json = Get-Content -LiteralPath $Config -Raw
-    if ($json -match '"appId"\s*:\s*"[^"]*"') {
-        $json = $json -replace '"appId"\s*:\s*"[^"]*"', ('"appId": "' + $appId + '"')
+    $json = Get-Content -LiteralPath $Config -Raw -Encoding UTF8
+    # Any value replaces the old one (also null or a number), so config.json never gets a second "appId"
+    $appIdValue = '"appId"\s*:\s*("[^"]*"|null|true|false|-?[\d.eE+-]+)'
+    if ($json -match $appIdValue) {
+        $json = $json -replace $appIdValue, ('"appId": "' + $appId + '"')
     } else {
         $json = $json -replace '^\s*\{', ("{`r`n  `"appId`": `"$appId`",")
     }
@@ -556,7 +567,7 @@ if ($iscc) {
 # 3. Components (downloaded)
 # ---------------------------------------------------------------------------------------------
 Write-Step 'Components'
-$manifest = Get-Content -LiteralPath (Join-Path $Root 'components.json') -Raw | ConvertFrom-Json
+$manifest = Get-Content -LiteralPath (Join-Path $Root 'components.json') -Raw -Encoding UTF8 | ConvertFrom-Json
 New-Item -ItemType Directory -Force -Path $CacheDir, $DepsDir | Out-Null
 
 # DXVK 2.7.1 is the newest release that works with Battlefield 1942 - never build with another version
@@ -822,6 +833,9 @@ $optionsSettings = [ordered]@{
     serverShortcut = $(if ($serverAddress) { $serverName } else { '' })
     serverAddress  = $serverAddress
     discordUrl     = [string](Get-Setting 'discordUrl' '')
+    # The separate programs this installer can add, for BF1942 Options' note (none in the build: no note)
+    separatePrograms = @(@(@('datafield42', 'DataField42'), @('richpresence', 'Battlefield Rich Presence'), @('punkbuster42', 'PunkBuster')) |
+        Where-Object { $included.ContainsKey($_[0]) -or $extrasFound.ContainsKey($_[0]) } | ForEach-Object { $_[1] })
 }
 [IO.File]::WriteAllText((Join-Path $OptionsDir 'options.json'), ($optionsSettings | ConvertTo-Json), (New-Object Text.UTF8Encoding $false))
 if ($images.Count) { Copy-Item -LiteralPath $images[-1] -Destination (Join-Path $OptionsDir 'cover.bmp') }
@@ -881,11 +895,18 @@ function Get-ArchiveFiles {
         Where-Object { $_.Name -match ('^' + [regex]::Escape($outputBase) + '\.7z(\.\d+)?$') } | Sort-Object Name)
 }
 
+# Hash files of earlier builds: <OutputBase>_YYYY-MM-DD_hh.mm.ss_AM.txt (or _PM)
+function Get-HashFiles {
+    return @(Get-ChildItem -LiteralPath $outputDir -Filter "$($outputBase)_*.txt" -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -match ('^' + [regex]::Escape($outputBase) + '_\d{4}-\d{2}-\d{2}_\d{2}\.\d{2}\.\d{2}_(AM|PM)\.txt$') })
+}
+
 # Runs ISCC once and returns its exit code. SpanBuild defines SPAN (Setup.exe + .bin files).
 function Invoke-Iscc([bool]$SpanBuild) {
-    # Remove the output of an earlier build, so no stale .bin files are left next to the new Setup.exe
+    # Remove the output of an earlier build, so no stale .bin files are left next to the new Setup.exe - nor an
+    # archive or hash file of it, which would describe files that are gone (also when this build makes no archive)
     Remove-WithRetry $setup
-    foreach ($old in Get-SliceFiles) { Remove-WithRetry $old.FullName }
+    foreach ($old in @(Get-SliceFiles) + @(Get-ArchiveFiles) + @(Get-HashFiles)) { Remove-WithRetry $old.FullName }
     $isccArgs = @()
     if ($Quick) { $isccArgs += '/DQUICK' }
     if ($SpanBuild) { $isccArgs += '/DSPAN' }
@@ -943,7 +964,7 @@ $historyKey = "$(if ($Quick) { 'quick' } else { 'full' })|$compression$(if ($Sma
 $history = @{}
 if (Test-Path -LiteralPath $historyFile) {
     try {
-        foreach ($prop in (Get-Content -LiteralPath $historyFile -Raw | ConvertFrom-Json).PSObject.Properties) { $history[$prop.Name] = $prop.Value }
+        foreach ($prop in (Get-Content -LiteralPath $historyFile -Raw -Encoding UTF8 | ConvertFrom-Json).PSObject.Properties) { $history[$prop.Name] = $prop.Value }
     } catch { Write-Note 'build\size-history.json is unreadable - ignoring it' }
 }
 # Until this machine has built with these settings, fall back to the typical ratio committed in size-seed.json
@@ -953,7 +974,7 @@ if ($history.ContainsKey($historyKey) -and $history[$historyKey].inputBytes -gt 
     $ratioSource = 'the last build with these settings'
 } else {
     try {
-        $seed = (Get-Content -LiteralPath (Join-Path $Root 'size-seed.json') -Raw -ErrorAction Stop | ConvertFrom-Json).$historyKey
+        $seed = (Get-Content -LiteralPath (Join-Path $Root 'size-seed.json') -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json).$historyKey
         if ($seed.ratio -gt 0) { $ratio = [double]$seed.ratio; $ratioSource = 'the typical compression in size-seed.json (measured on the MoonGamers build)' }
     } catch { }
 }
@@ -1024,6 +1045,21 @@ if ($slices.Count) {
     Write-Info ("Size:    {0:N0} bytes ({1:N0} MB below the single-file limit of {2:N0} bytes)" -f $item.Length, (($SetupLimit - $item.Length) / 1e6), $SetupLimit)
     Write-Info ("SHA-256: {0}" -f $hash)
 }
+# The hashes go next to the installer in a text file named after the build time, to publish with it. The hash
+# files of earlier builds were removed with their output before compiling.
+function Write-HashFile {
+    # 12-hour clock with AM/PM; the invariant culture keeps "AM"/"PM" whatever the Windows language is
+    $en = [Globalization.CultureInfo]::InvariantCulture
+    $script:hashFile = Join-Path $outputDir ("$($outputBase)_$($item.LastWriteTime.ToString('yyyy-MM-dd_hh.mm.ss_tt', $en)).txt")
+    $hashLines = @("Built:   $($item.LastWriteTime.ToString('yyyy-MM-dd hh:mm:ss tt', $en))")
+    foreach ($h in $hashed) {
+        $hashLines += @('', $h.Name, ('Size:    {0:N0} bytes' -f $h.Length), "SHA-256: $($h.Hash)")
+    }
+    if ($Quick) { $hashLines += @('', '-Quick build without the game files - do not distribute it.') }
+    [IO.File]::WriteAllLines($script:hashFile, $hashLines, (New-Object Text.UTF8Encoding $false))
+    Write-Info "Hash file: $($script:hashFile)"
+}
+
 if ($Package7z) {
     $levelText = if ($PackageLevel -eq 0) { 'store' } elseif ($PackageLevel -eq 9) { 'ultra' } else { "level $PackageLevel" }
     Write-Step "Packaging the installer with 7-Zip ($levelText)"
@@ -1053,6 +1089,7 @@ if ($Package7z) {
     $written = Get-ArchiveFiles
     if ($packCode -ne 0 -or -not $written.Count) {
         $packLog | Select-Object -Last 15 | ForEach-Object { Write-Host "    $_" }
+        Write-HashFile   # the installer files are fine, so their hash file still goes next to them
         Stop-Build "7-Zip failed (exit code $packCode). The installer files in output\ are fine - only the archive is missing."
     }
     $packedBytes = [double](($written | Measure-Object Length -Sum).Sum)
@@ -1073,19 +1110,5 @@ if ($Package7z) {
     Write-Info ("They need about {0:N0} MB free to extract it, on top of the download." -f ($outputBytes / 1e6))
 }
 
-# The hashes go next to the installer in a text file named after the build time, to publish with it.
-# Older hash files describe output that has just been overwritten, so they are removed.
-Get-ChildItem -LiteralPath $outputDir -Filter "$($outputBase)_*.txt" -File -ErrorAction SilentlyContinue |
-    Where-Object { $_.Name -match ('^' + [regex]::Escape($outputBase) + '_\d{4}-\d{2}-\d{2}_\d{2}\.\d{2}\.\d{2}_(AM|PM)\.txt$') } |
-    ForEach-Object { Remove-WithRetry $_.FullName }
-# 12-hour clock with AM/PM; the invariant culture keeps "AM"/"PM" whatever the Windows language is
-$en = [Globalization.CultureInfo]::InvariantCulture
-$hashFile = Join-Path $outputDir ("$($outputBase)_$($item.LastWriteTime.ToString('yyyy-MM-dd_hh.mm.ss_tt', $en)).txt")
-$hashLines = @("Built:   $($item.LastWriteTime.ToString('yyyy-MM-dd hh:mm:ss tt', $en))")
-foreach ($h in $hashed) {
-    $hashLines += @('', $h.Name, ('Size:    {0:N0} bytes' -f $h.Length), "SHA-256: $($h.Hash)")
-}
-if ($Quick) { $hashLines += @('', '-Quick build without the game files - do not distribute it.') }
-[IO.File]::WriteAllLines($hashFile, $hashLines, (New-Object Text.UTF8Encoding $false))
-Write-Info "Hash file: $hashFile"
+Write-HashFile
 if ($Quick) { Write-Note 'This was a -Quick build without the game files - do not distribute it.' }

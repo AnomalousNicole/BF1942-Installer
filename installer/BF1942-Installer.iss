@@ -24,16 +24,22 @@
 ; Pre-selected font: 2x when present, otherwise the closest available size
 #if Has_font_2x
   #define DefaultFont "x2"
+  #define DefaultFontDir "2x"
 #elif Has_font_1x
   #define DefaultFont "x1"
+  #define DefaultFontDir "1x"
 #elif Has_font_3x
   #define DefaultFont "x3"
+  #define DefaultFontDir "3x"
 #elif Has_font_35x
   #define DefaultFont "x35"
+  #define DefaultFontDir "3.5x"
 #elif Has_font_4x
   #define DefaultFont "x4"
+  #define DefaultFontDir "4x"
 #else
   #define DefaultFont "original"
+  #define DefaultFontDir "Original"
 #endif
 
 ; ---- Welcome page list of included community tools ----
@@ -134,7 +140,7 @@ Name: "bobsiren"; Description: "Battle of Britain - disable the air raid siren (
 Name: "borderless"; Description: "Borderless1942 {#Ver_borderless1942} (Turnerj, LANCommander, Nicole) - borderless window launcher"; Types: custom; Check: IsWin64
 #endif
 #if Has_datafield42
-Name: "datafield"; Description: "DataField42 {#Ver_datafield42} (Ahrkylien) - automatic map/mod downloader"; Types: custom
+Name: "datafield"; Description: "DataField42 {#Ver_datafield42} (Ahrkylien) - automatic map/mod downloader"; Types: custom; Check: IsWin64
 #endif
 #if Has_richpresence
 Name: "richpresence"; Description: "Battlefield Rich Presence {#Ver_richpresence} (Gametools Network) - show your BF1942 game in Discord"; Types: custom; Check: IsWin64
@@ -189,11 +195,16 @@ Source: "{#BuildDir}\VulkanCheck.exe"; Flags: dontcopy
 ; Base game (the Tools folder is not shipped - DirectX/DirectPlay are handled by the installer)
 #ifndef QUICK
 ; The game folder's own Font.rfa is never shipped - Font.rfa always comes from the Font component
-Source: "{#GameDir}\*"; Excludes: "\Mods\bf1942\Archives\Font.rfa,\Tools"; DestDir: "{app}"; Components: game; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#GameDir}\*"; Excludes: "\Mods\bf1942\Archives\Font.rfa,\Tools,\Mods\bf1942\Settings"; DestDir: "{app}"; Components: game; Flags: ignoreversion recursesubdirs createallsubdirs
+; The player's settings (profile and player name, controls, video, sound, server settings) only go in when missing,
+; so running Setup again keeps them. Setup sets the screen resolution and windowed mode in them afterwards.
+Source: "{#GameDir}\Mods\bf1942\Settings\*"; DestDir: "{app}\Mods\bf1942\Settings"; Components: game; Flags: onlyifdoesntexist recursesubdirs createallsubdirs
 #endif
+; /COMPONENTS without a font: the default font, unless the game folder has a font already (see NoFontSelected)
+Source: "{#Extras}\Fonts\{#DefaultFontDir}\Font.rfa"; DestDir: "{app}\Mods\bf1942\Archives"; Check: NoFontSelected; Flags: onlyifdoesntexist
 
-; Troubleshooting guide, next to the game manual. build.ps1 prints it from docs\manual into build\manual
-Source: "{#ManualDir}\Battlefield 1942 Troubleshooting.pdf"; DestDir: "{app}\manual"; Flags: ignoreversion
+; Troubleshooting guide (and any other page in docs\manual), next to the game manual. build.ps1 prints them to PDF in build\manual
+Source: "{#ManualDir}\*.pdf"; DestDir: "{app}\manual"; Flags: ignoreversion
 
 ; BF1942 Options (a WinUI app, installer\BF1942Options) turns the fixes and extras on and off after install.
 ; build.ps1 publishes it self-contained to build\options; it runs from {app}\Options\App. It switches between the
@@ -241,8 +252,11 @@ Source: "{#Extras}\Fonts\4x\Font.rfa"; DestDir: "{app}\Options\Fonts\4x"; Flags:
 #endif
 
 ; Required fixes (next to BF1942.exe)
-Source: "{#Deps}\bf42pp\*"; DestDir: "{app}"; Components: required\bf42pp; Flags: ignoreversion
-Source: "{#Deps}\hrtf\*"; Excludes: "*.txt"; DestDir: "{app}"; Components: required\hrtf; Flags: ignoreversion
+Source: "{#Deps}\bf42pp\*"; Excludes: "bf42++.ini"; DestDir: "{app}"; Components: required\bf42pp; Flags: ignoreversion
+Source: "{#Deps}\hrtf\*"; Excludes: "*.txt,alsoft.ini"; DestDir: "{app}"; Components: required\hrtf; Flags: ignoreversion
+; Their settings files only when missing, so the player's own settings stay (BF1942 Options does the same)
+Source: "{#Deps}\bf42pp\bf42++.ini"; DestDir: "{app}"; Components: required\bf42pp; Flags: onlyifdoesntexist
+Source: "{#Deps}\hrtf\alsoft.ini"; DestDir: "{app}"; Components: required\hrtf; Flags: onlyifdoesntexist
 Source: "{#Deps}\hrtf\*.txt"; DestDir: "{app}\Licenses"; Components: required\hrtf; Flags: ignoreversion
 Source: "{#Deps}\dxvk\*"; DestDir: "{app}"; Components: required\renderer; Check: UseDXVK; Flags: ignoreversion
 Source: "{#Deps}\dgvoodoo2\*"; DestDir: "{app}"; Components: required\renderer; Check: not UseDXVK; Flags: ignoreversion
@@ -320,7 +334,7 @@ Root: HKLM32; Subkey: "{#StateKey}"; ValueType: string; ValueName: "SkipIntro"; 
 Root: HKLM32; Subkey: "{#StateKey}"; ValueType: string; ValueName: "DataField42"; ValueData: "1"; Components: datafield; Flags: uninsdeletekey
 #endif
 #if Has_richpresence
-Root: HKLM32; Subkey: "{#StateKey}"; ValueType: string; ValueName: "RichPresence"; ValueData: "1"; Components: richpresence; Flags: uninsdeletekey
+Root: HKLM32; Subkey: "{#StateKey}"; ValueType: string; ValueName: "RichPresence"; ValueData: "1"; Components: richpresence; Check: RichPresenceIsNew; Flags: uninsdeletekey
 #endif
 #if Has_punkbuster42
 ; PunkBuster Services are shared with other PB games - the uninstaller only removes them when no other PB game is found
@@ -373,15 +387,17 @@ Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile
 Filename: "{app}\BF1942.exe"; Parameters: "{code:GetLaunchParams}"; WorkingDir: "{app}"; Description: "Launch Battlefield 1942"; Flags: postinstall nowait skipifsilent unchecked runasoriginaluser
 
 [UninstallRun]
+; Each command compares paths with the game folder as plain text ($d): -like would read [ and ] in a folder name
+; as wildcards, and PSApp doubles an apostrophe in it for the quotes
 ; Close BF1942 Options if it is still open, so its folder can be deleted
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Get-Process 'BF1942 Options' -ErrorAction SilentlyContinue | Where-Object Path -like '{app}\*' | Stop-Process -Force"""; RunOnceId: "CloseOptionsApp"; Flags: runhidden waituntilterminated
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""$d = '{code:PSApp}\'; Get-Process 'BF1942 Options' -ErrorAction SilentlyContinue | Where-Object {{ $_.Path -and $_.Path.StartsWith($d, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force"""; RunOnceId: "CloseOptionsApp"; Flags: runhidden waituntilterminated
 #if Has_punkbuster42
 ; Close any PunkBuster setup window still running from the game folder so its pbsvc.exe can be deleted
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Get-Process pbsvc -ErrorAction SilentlyContinue | Where-Object Path -like '{app}\*' | Stop-Process -Force"""; RunOnceId: "ClosePunkBusterSetup"; Components: punkbuster; Flags: runhidden waituntilterminated
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""$d = '{code:PSApp}\'; Get-Process pbsvc -ErrorAction SilentlyContinue | Where-Object {{ $_.Path -and $_.Path.StartsWith($d, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force"""; RunOnceId: "ClosePunkBusterSetup"; Components: punkbuster; Flags: runhidden waituntilterminated
 #endif
 ; Remove Windows Firewall rules that Windows created for programs in the game folder (bf1942.exe, dedicated server, pbsvc.exe...)
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Get-NetFirewallApplicationFilter | Where-Object Program -like '{app}\*' | Get-NetFirewallRule | Remove-NetFirewallRule"""; RunOnceId: "RemoveFirewallRules64"; Check: IsWin64; Flags: runhidden waituntilterminated 64bit
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Get-NetFirewallApplicationFilter | Where-Object Program -like '{app}\*' | Get-NetFirewallRule | Remove-NetFirewallRule"""; RunOnceId: "RemoveFirewallRules32"; Check: not IsWin64; Flags: runhidden waituntilterminated
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""$d = '{code:PSApp}\'; Get-NetFirewallApplicationFilter | Where-Object {{ $_.Program -and $_.Program.StartsWith($d, [StringComparison]::OrdinalIgnoreCase) } | Get-NetFirewallRule | Remove-NetFirewallRule"""; RunOnceId: "RemoveFirewallRules64"; Check: IsWin64; Flags: runhidden waituntilterminated 64bit
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""$d = '{code:PSApp}\'; Get-NetFirewallApplicationFilter | Where-Object {{ $_.Program -and $_.Program.StartsWith($d, [StringComparison]::OrdinalIgnoreCase) } | Get-NetFirewallRule | Remove-NetFirewallRule"""; RunOnceId: "RemoveFirewallRules32"; Check: not IsWin64; Flags: runhidden waituntilterminated
 
 [InstallDelete]
 ; Installing over an earlier install: the files of the graphics fix that is not being installed go first, so
@@ -503,6 +519,17 @@ end;
 
 { ---------- DXVK / dgVoodoo2 detection ---------- }
 
+function SameFileContent(const A, B: String): Boolean;
+begin
+  Result := FileExists(A) and FileExists(B) and (GetSHA256OfFile(A) = GetSHA256OfFile(B));
+end;
+
+{ The game folder runs dgVoodoo2 now (picked in BF1942 Options, or by an earlier Setup) }
+function DgVoodooInstalled: Boolean;
+begin
+  Result := SameFileContent(ExpandConstant('{app}\d3d8.dll'), ExpandConstant('{app}\Options\dgVoodoo2\D3D8.dll'));
+end;
+
 procedure DetectRenderer;
 var
   Forced: String;
@@ -522,6 +549,11 @@ begin
     RendererInfo := 'Forced by /RENDERER=dxvk';
   end else if Forced = 'dgvoodoo' then
     RendererInfo := 'Forced by /RENDERER=dgvoodoo'
+  else if DgVoodooInstalled then
+    { Installing over a game that runs dgVoodoo2 keeps it: someone picked it in BF1942 Options, or an earlier Setup
+      did, and switching to DXVK by itself could bring a black screen back. Over DXVK the check runs again, so a
+      card that can't run it (such as an AMD RX 400/500) still gets dgVoodoo2. }
+    RendererInfo := 'dgVoodoo2 kept: the game folder already runs it (BF1942 Options switches it)' + #13#10
   else begin
     { Only exit code 1 means the GPU can't run DXVK. If the check itself fails (often an
       antivirus blocking VulkanCheck.exe) the answer is unknown, so the user picks instead }
@@ -824,6 +856,14 @@ begin
   Log('Borderless1942: renderer.setFullScreen 0');
 end;
 
+{ Without Borderless1942 the game runs fullscreen. Setup keeps the game's settings files when it installs over an
+  earlier install, so a windowed VideoDefault.con from before is set back here }
+procedure ConfigureFullscreen;
+begin
+  SetConLine(ExpandConstant('{app}\Mods\bf1942\Settings\VideoDefault.con'),
+             'renderer.setFullScreen', 'renderer.setFullScreen 1');
+end;
+
 { Finds an installed program in Apps & features whose name contains NamePart.
   KeyName = its uninstall key (the ProductCode for MSI installs), Cmd = its UninstallString }
 function FindUninstallEntry(const NamePart: String; var KeyName, Cmd: String): Boolean;
@@ -881,7 +921,8 @@ end;
   makes the game start DataField42 when a map or mod is missing, is applied again (what its installer does) }
 function DataField42PatchNeeded: Boolean;
 begin
-  Result := DataField42Here and FileExists(ExpandConstant('{app}\DataField42.exe'));
+  { DataField42 is a 64-bit program }
+  Result := IsWin64 and DataField42Here and FileExists(ExpandConstant('{app}\DataField42.exe'));
 end;
 
 function FindDataField42Uninstaller(var Cmd: String): Boolean;
@@ -938,12 +979,159 @@ begin
   end;
 end;
 
+{ ---------- Installing over an earlier install ---------- }
+
+{ The game folder for a single-quoted PowerShell string ([UninstallRun]): an apostrophe in its name is doubled }
+function PSApp(Param: String): String;
+begin
+  Result := ExpandConstant('{app}');
+  StringChangeEx(Result, '''', '''''', True);
+end;
+
+{ /COMPONENTS on the command line deselects every font it doesn't list, and the game's own Font.rfa is never
+  copied, so the game would have no font at all: the default font is installed then, if there is none }
+function NoFontSelected: Boolean;
+begin
+  Result := True;
+#if Has_font_original
+  if WizardIsComponentSelected('font\original') then Result := False;
+#endif
+#if Has_font_1x
+  if WizardIsComponentSelected('font\x1') then Result := False;
+#endif
+#if Has_font_2x
+  if WizardIsComponentSelected('font\x2') then Result := False;
+#endif
+#if Has_font_3x
+  if WizardIsComponentSelected('font\x3') then Result := False;
+#endif
+#if Has_font_35x
+  if WizardIsComponentSelected('font\x35') then Result := False;
+#endif
+#if Has_font_4x
+  if WizardIsComponentSelected('font\x4') then Result := False;
+#endif
+  if Result then Log('No font selected - installing the {#DefaultFontDir} font if the game folder has none');
+end;
+
+{ Already installed in another folder: Setup has one entry in Apps, which the new folder takes over, and the old
+  folder stays behind with its own copy of the game }
+function ConfirmSecondInstall: Boolean;
+var
+  Prev: String;
+begin
+  Result := True;
+  Prev := RemoveBackslashUnlessRoot(WizardForm.PrevAppDir);
+  if (Prev = '') or PathSame(Prev, WizardDirValue) or not DirExists(Prev) then Exit;
+  Log('Already installed in ' + Prev + ' - now installing to ' + WizardDirValue);
+  if not WizardSilent then
+    Result := MsgBox('Battlefield 1942 is already installed in:' + #13#10 + Prev + #13#10#13#10 +
+      'Installing to another folder adds a second copy of the game. The first copy stays, but it can no longer ' +
+      'be uninstalled from Settings > Apps.' + #13#10#13#10 +
+      'To move the game, click No, uninstall it, and run Setup again. Install a second copy anyway?',
+      mbConfirmation, MB_YESNO) = IDYES;
+end;
+
+{ Installing over a game folder: the font, the extras Setup switches by itself and the skip-intro choice start as
+  they are in the folder now, so running Setup again doesn't undo what was changed in BF1942 Options since. (The
+  renderer: DetectRenderer. Borderless1942 and the Compatibility Profile stay as they are anyway.) /COMPONENTS and
+  /TASKS on the command line still decide. }
+var
+  SelectedFor: String;   { the folder the component list was last set up for }
+
+procedure SelectFromGameFolder;
+var
+  Lib, Archives, Value: String;
+  Found: Boolean;
+begin
+  { Once per folder, so going back to the folder page doesn't undo changes made on the components page }
+  if PathSame(SelectedFor, WizardDirValue) then Exit;
+  SelectedFor := WizardDirValue;
+  Lib := AddBackslash(WizardDirValue) + 'Options\';
+  Archives := AddBackslash(WizardDirValue) + 'Mods\bf1942\Archives\';
+  if not DirExists(Lib) then Exit;
+  if ExpandConstant('{param:COMPONENTS|}') = '' then begin
+    Found := False;
+#if Has_font_original
+    if not Found and SameFileContent(Archives + 'Font.rfa', Lib + 'Fonts\Original\Font.rfa') then begin
+      WizardSelectComponents('font\original');
+      Found := True;
+    end;
+#endif
+#if Has_font_1x
+    if not Found and SameFileContent(Archives + 'Font.rfa', Lib + 'Fonts\1x\Font.rfa') then begin
+      WizardSelectComponents('font\x1');
+      Found := True;
+    end;
+#endif
+#if Has_font_2x
+    if not Found and SameFileContent(Archives + 'Font.rfa', Lib + 'Fonts\2x\Font.rfa') then begin
+      WizardSelectComponents('font\x2');
+      Found := True;
+    end;
+#endif
+#if Has_font_3x
+    if not Found and SameFileContent(Archives + 'Font.rfa', Lib + 'Fonts\3x\Font.rfa') then begin
+      WizardSelectComponents('font\x3');
+      Found := True;
+    end;
+#endif
+#if Has_font_35x
+    if not Found and SameFileContent(Archives + 'Font.rfa', Lib + 'Fonts\3.5x\Font.rfa') then begin
+      WizardSelectComponents('font\x35');
+      Found := True;
+    end;
+#endif
+#if Has_font_4x
+    if not Found and SameFileContent(Archives + 'Font.rfa', Lib + 'Fonts\4x\Font.rfa') then begin
+      WizardSelectComponents('font\x4');
+      Found := True;
+    end;
+#endif
+#if Has_hiresui
+    if FileExists(Lib + 'Higher resolution UI\menu.rfa') then begin
+      if SameFileContent(Archives + 'menu.rfa', Lib + 'Higher resolution UI\menu.rfa') then
+        WizardSelectComponents('hiresui')
+      else
+        WizardSelectComponents('!hiresui');
+    end;
+#endif
+#if Has_bobsiren
+    if FileExists(Lib + 'Battle of Britain disable siren\Battle_of_Britain.rfa') then begin
+      if SameFileContent(Archives + 'bf1942\levels\Battle_of_Britain.rfa', Lib + 'Battle of Britain disable siren\Battle_of_Britain.rfa') then
+        WizardSelectComponents('bobsiren')
+      else
+        WizardSelectComponents('!bobsiren');
+    end;
+#endif
+    Log('Components as the game folder has them: ' + WizardSelectedComponents(False));
+  end;
+  if (ExpandConstant('{param:TASKS|}') = '') and (ExpandConstant('{param:MERGETASKS|}') = '') and
+     RegQueryStringValue(HKLM32, StateKey, 'SkipIntro', Value) then begin
+    if Value = '1' then WizardSelectTasks('skipintro') else WizardSelectTasks('!skipintro');
+    Log('Skip intro as the game folder has it: ' + Value);
+  end;
+end;
+
 { ---------- Wizard ---------- }
 
+var
+  RichPresenceBefore: Boolean;
+
 function InitializeSetup: Boolean;
+var
+  KeyName, Cmd: String;
 begin
   InitSerial;
+  { Battlefield Rich Presence that was there before this setup ran is the player's (it serves other Battlefield
+    games too), so the uninstaller leaves it }
+  RichPresenceBefore := FindUninstallEntry('battlefield rich presence', KeyName, Cmd);
   Result := True;
+end;
+
+function RichPresenceIsNew: Boolean;
+begin
+  Result := not RichPresenceBefore;
 end;
 
 { One line of the RTF credits text }
@@ -1157,10 +1345,13 @@ end;
 function NextButtonClick(CurPageID: Integer): Boolean;
 begin
   Result := True;
+  if CurPageID = wpSelectDir then begin
 #if AppendEAGames
-  if CurPageID = wpSelectDir then
     ApplyInstallDirRule;
 #endif
+    Result := ConfirmSecondInstall;
+    if Result then SelectFromGameFolder;
+  end;
 end;
 
 function UpdateReadyMemo(Space, NewLine, MemoUserInfoInfo, MemoDirInfo, MemoTypeInfo,
@@ -1229,7 +1420,9 @@ begin
 #else
     if FileExists(ExpandConstant('{app}\Borderless1942.exe')) then
 #endif
-      ConfigureBorderless;
+      ConfigureBorderless
+    else
+      ConfigureFullscreen;
   end;
 end;
 

@@ -45,7 +45,7 @@ flowchart LR
    - `File_<id>`
 
    Text values are sanitised: quotes become typographic quotes so they are safe inside ISPP and Pascal strings.
-7. **Troubleshooting guide and BF1942 Options.** Every page in `docs\manual` is printed to a PDF of the same name in `build\manual` with headless Microsoft Edge (a profile of its own in `build\edge-profile`). BF1942 Options is published from the `installer\BF1942Options` submodule ([BF1942-Installer-Options](https://github.com/AnomalousNicole/BF1942-Installer-Options)) with `dotnet publish` (.NET 10 SDK; `git submodule update --init` runs first if a clone left the folder empty) to `build\options`, with the game's `bf1942.ico` when there is one. `options.json` (`registryStateKey`, `generateSerial`, the server shortcut's name and address, `discordUrl`) and `cover.bmp` (the largest `branding\WizardImage*.bmp`) are written next to it.
+7. **Troubleshooting guide and BF1942 Options.** Every page in `docs\manual` is printed to a PDF of the same name in `build\manual` with headless Microsoft Edge (a profile of its own in `build\edge-profile`). BF1942 Options is published from the `installer\BF1942Options` submodule ([BF1942-Installer-Options](https://github.com/AnomalousNicole/BF1942-Installer-Options)) with `dotnet publish` (.NET 10 SDK; `git submodule update --init` runs first if a clone left the folder empty) to `build\options`, with the game's `bf1942.ico` when there is one. `options.json` (`registryStateKey`, `generateSerial`, the server shortcut's name and address, `discordUrl`, and the separate programs the build includes) and `cover.bmp` (the largest `branding\WizardImage*.bmp`) are written next to it.
 8. **Compile.** `ISCC installer\BF1942-Installer.iss`, with `/DQUICK` when `-Quick` is used (no game files). LZMA2 compresses the data in 256 MB blocks, one block thread per CPU thread as long as there is about 1.5 GB of free RAM for each (`LzmaThreads` in `generated.iss`). `-Smallest` instead compresses one stream with a 1 GB dictionary (`LzmaDict`), the largest a 32-bit Setup supports: about 5% smaller and 6-7 times slower. Measured with Inno Setup 7.1 on a 16-thread PC and 2,367 MB of game data plus extras: 4 threads took 231 s, 16 threads 136 s (identical output), and `-Smallest` 954 s (1,974 MB down to 1,871 MB). Dictionaries of 256 MB and 512 MB in a single stream saved only 7 MB and 62 MB.
 
    Before compiling, the script decides between a single `Setup.exe` (up to 4,200,000,000 bytes) and a split build (`/DSPAN`, `DiskSpanning=yes`, `.bin` slices of 2,100,000,000 bytes). It predicts the compressed size from `build\size-history.json` (this PC's earlier builds) or, before the first build, from the committed `size-seed.json`, whose ratios are measured on the MoonGamers build of this installer rather than on a build of the template and are therefore only an estimate. It compiles a second time only when a single file turns out not to fit. The progress bar follows the `Compressing:` lines of ISCC, whose paths Inno Setup 7 prints in extended-length form (`\\?\C:\...`); the script strips that prefix before looking up each file's size. The script then prints the size and SHA-256 of the result. At the very end (after `-Package7z`, if given) it writes the build time and the name, size and SHA-256 of every output file (`Setup.exe`, any `.bin` slices and `.7z` volumes) to `output\<OutputBase>_YYYY-MM-DD_hh.mm.ss_AM.txt` (or `_PM`), named after the time the installer was written on a 12-hour clock, and deletes the hash files of earlier builds because the output they describe has been overwritten.
@@ -72,7 +72,7 @@ Everything that depends on an optional component is wrapped in `#if Has_<id>` in
 
 These match the adapter checks in DXVK 2.7.1 (`dxvk_device_info.cpp`). When DXVK finds no adapter it only writes `No adapters found` to `BF1942_d3d9.log` and the game shows a black screen, so a GPU that misses any of them must get dgVoodoo2. AMD Polaris (RX 400/500) is the known case: its drivers report Vulkan 1.3 but have no `maintenance5`.
 
-It returns `1` when no device does, which means dgVoodoo2. If the check fails (the helper can't be extracted or started, which is usually an antivirus blocking it, or it returns `2`), Setup asks the player which renderer to install, defaulting to DXVK (silent installs take the default). The check's output is shown on the *Ready to Install* page and written to the setup log. `Setup.exe /RENDERER=dxvk` or `/RENDERER=dgvoodoo` skips the check.
+It returns `1` when no device does, which means dgVoodoo2. If the check fails (the helper can't be extracted or started, which is usually an antivirus blocking it, or it returns `2`), Setup asks the player which renderer to install, defaulting to DXVK (silent installs take the default). The check's output is shown on the *Ready to Install* page and written to the setup log. `Setup.exe /RENDERER=dxvk` or `/RENDERER=dgvoodoo` skips the check. Installing over a game folder that runs dgVoodoo2 (its `d3d8.dll` is identical to the library copy) keeps dgVoodoo2 without the check: it was picked in BF1942 Options or by an earlier Setup, and switching to DXVK could bring a black screen back. Over DXVK the check runs again.
 
 | Renderer | Installed files |
 |---|---|
@@ -131,6 +131,10 @@ With `appendEAGamesFolder`, the chosen folder is normalised to `…\EA Games\Bat
 
 ## 4. Install order (`[Run]`)
 
+The game's settings in `Mods\bf1942\Settings` (profile and player name, controls, video, sound, server settings), `bf42++.ini` and `alsoft.ini` are only copied when missing, so installing over an earlier install keeps the player's own. Setup then sets the resolution in every `Video*.con` and `renderer.setFullScreen` in `VideoDefault.con` (0 with Borderless1942, 1 without). `/COMPONENTS` without a font installs the default font if the folder has none, as the game's own `Font.rfa` is never copied.
+
+Installing over an earlier install, the component list starts as the game folder has it (the font, Higher resolution UI, the Battle of Britain siren, and Skip intro from the state key), unless `/COMPONENTS` or `/TASKS` is given. Installing to another folder than the existing install asks first (silent installs only log it).
+
 Before any file is copied, `[InstallDelete]` removes the files of the graphics fix that is not being installed (`d3d9.dll` and `dxvk.conf` for dgVoodoo2, `dgVoodoo.conf` for DXVK), so installing over an earlier install that used the other one leaves none of its files behind.
 
 1. `dism /online /enable-feature /featurename:DirectPlay /all`: only if the WMI `Win32_OptionalFeature` InstallState is not 1. Uses the 64-bit `dism` on x64.
@@ -154,7 +158,7 @@ Before any file is copied, `[InstallDelete]` removes the files of the graphics f
 | PunkBuster setup window | Any `pbsvc.exe` still running from `{app}` is closed |
 | Firewall | Every rule whose program is under `{app}\` is removed, such as the auto-created `bf1942` TCP/UDP rules |
 | DataField42 | Only when DataField42 is installed in this game folder (also when the player installed it there, as the folder is deleted anyway); one installed for another folder stays. A running DataField42 from the folder is closed, then its own uninstaller runs with `/VERYSILENT`. The uninstaller waits until its uninstall entry is gone. |
-| Rich Presence | `msiexec /x {ProductCode} /qn` |
+| Rich Presence | `msiexec /x {ProductCode} /qn`, only when Setup installed it: a Rich Presence that was there before (it serves other Battlefield games too) stays |
 | "Punkbuster for Battlefield 1942" | Its uninstall key and Start menu folder are deleted, but only if the entry points into `{app}` |
 | PunkBuster Services | Removed **only when no other PunkBuster game is found** (see below) |
 | Files and registry | `{app}` is deleted recursively, then the registry values listed in §3 are removed |
@@ -186,6 +190,6 @@ If none is found, the uninstaller:
 | Script and components only | `.\build.ps1 -Quick` |
 | Force a renderer | `Setup.exe /RENDERER=dxvk` or `/RENDERER=dgvoodoo` |
 | dgVoodoo2 path | A VM without a Vulkan 1.3 GPU, or `/RENDERER=dgvoodoo` |
-| 32-bit | A 32-bit Windows 10 VM: Borderless1942 and Rich Presence must be hidden |
+| 32-bit | A 32-bit Windows 10 VM: Borderless1942, DataField42 and Rich Presence must be hidden |
 | Logs | Setup: `%TEMP%\Setup Log YYYY-MM-DD #NNN.txt`. Uninstall: `unins000.exe /LOG="C:\uninstall.log"` |
 | Clean uninstall | Compare registry exports and firewall rules before the install and after the uninstall |

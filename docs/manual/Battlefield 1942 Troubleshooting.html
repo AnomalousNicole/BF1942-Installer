@@ -29,9 +29,9 @@
 <h1>Battlefield 1942 Troubleshooting</h1>
 <p class="sub">For the Battlefield 1942 &amp; Expansions installer</p>
 
-<p>Many problems below are fixed in <b>Battlefield 1942 Options</b>, which the installer adds to the Start menu (and to your desktop, unless you unticked it). It switches the graphics fix between DXVK and dgVoodoo2, turns BF42++, 3D audio, Higher resolution UI, Borderless1942, the Battle of Britain siren and the Compatibility Profile on or off, changes the font size, sets the game to your screen's resolution and can generate a CD key. Close the game, make your changes and click <b>Apply</b>.</p>
-<p>For DataField42, Battlefield Rich Presence and PunkBuster, run the installer again and choose <b>Custom</b>. It installs over your existing game in the same folder, so you don't need to uninstall first. Running the installer again also puts back every fix, with the choices you make in it.</p>
-<p>The game folder is <span class="path">C:\EA Games\Battlefield 1942</span> unless you picked a different one during setup. This guide is in its <span class="path">manual</span> folder, next to the game manual.</p>
+<p>Many problems below are fixed in <b>Battlefield 1942 Options</b>, which the installer adds to the Start menu (and to your desktop, unless you unticked it). It switches the graphics fix between DXVK and dgVoodoo2, turns BF42++, 3D audio, Higher resolution UI, Borderless1942, the Battle of Britain siren and the Compatibility Profile on or off, changes the font size, sets the game to your screen's resolution and can generate a CD key. Close the game, make your changes and click <b>Apply</b>. Anything your installer was built without shows <b>Not included in this installer</b>.</p>
+<p>For DataField42, Battlefield Rich Presence and PunkBuster (if your installer includes them), run the installer again and choose <b>Custom</b>. It installs over your existing game in the same folder, so you don't need to uninstall first. Running the installer again also puts back every fix, with the choices you make in it.</p>
+<p>The game folder is the one you picked during setup. Battlefield 1942 Options shows it under <b>Game folder</b>, and <b>Open game folder</b> opens it. This guide is in its <span class="path">manual</span> folder, next to the game manual.</p>
 
 <h2>Contents</h2>
 <ol>
@@ -116,8 +116,8 @@
   <li><b>Server shortcut:</b> if your installer added a shortcut for a server to the desktop, it skips the intro and connects straight to that server.</li>
   <li><b>Windows Firewall:</b> the first time you play online, Windows asks whether to allow Battlefield 1942 on networks. Click <b>Allow</b>. If you clicked <b>Cancel</b>, go to <b>Windows Security</b> &gt; <b>Firewall &amp; network protection</b> &gt; <b>Allow an app through firewall</b>, and tick Battlefield 1942 (<span class="path">BF1942.exe</span>) for <b>Private</b> and <b>Public</b>.</li>
   <li><b>Kicked with a PunkBuster message:</b> that server needs PunkBuster. Run the installer again, choose <b>Custom</b> and tick <b>Punkbuster42</b>. When its window opens, click <b>Install/Repair</b>, then close the window to let setup finish.</li>
-  <li><b>The game says your CD key is missing or invalid:</b> open <b>Battlefield 1942 Options</b> and click <b>Generate a CD key</b>. The button only works when no valid key is registered.</li>
-  <li><b>Missing map or mod when joining:</b> the <b>DataField42</b> extra (choose <b>Custom</b>) downloads missing maps and mods automatically when you join a server.</li>
+  <li><b>The game says your CD key is missing or invalid:</b> open <b>Battlefield 1942 Options</b> and click <b>Generate a CD key</b>, if your installer offers it. The button only works when no valid key is registered.</li>
+  <li><b>Missing map or mod when joining:</b> the <b>DataField42</b> extra (choose <b>Custom</b>; 64-bit Windows only) downloads missing maps and mods automatically when you join a server.</li>
 </ul>
 </section>
 
@@ -127,14 +127,14 @@
   <li><b>"Windows protected your PC":</b> click <b>More info</b>, then <b>Run anyway</b>. The installer isn't code-signed, so Windows shows this for it.</li>
   <li><b>Setup asks whether to install DXVK or dgVoodoo2:</b> its graphics check couldn't run, which is usually an antivirus blocking it. Pick <b>DXVK</b> (the default) for most graphics cards from 2016 or later, or <b>dgVoodoo2</b> for older cards and AMD RX 400/500 cards. If you get a black screen afterwards, see section 1. To stop the antivirus blocking the check next time, add an exclusion for the setup file and the game folder.</li>
   <li><b>PunkBuster window:</b> setup waits while the PunkBuster window is open. Click <b>Install/Repair</b>, then close that window, and setup will finish.</li>
-  <li><b>Install folder:</b> <span class="path">EA Games\Battlefield 1942</span> is always added to the folder you choose. For example, <span class="path">D:\Games</span> becomes <span class="path">D:\Games\EA Games\Battlefield 1942</span>.</li>
+  <li><b>Install folder:</b> the folder box shows where the game will go. Many installers add <span class="path">EA Games\Battlefield 1942</span> to the folder you choose, unless it already ends with it, so <span class="path">D:\Games</span> becomes <span class="path">D:\Games\EA Games\Battlefield 1942</span>.</li>
   <li><b>Setup failed or stopped:</b> every run writes a log file. Press <b>Win + R</b>, type <b>%TEMP%</b> and press <b>Enter</b>. The newest <b>Setup Log</b> file describes the last run. Include it when you ask for help.</li>
 </ul>
 </section>
 
 <section>
 <h2>8. Uninstalling</h2>
-<p>Go to <b>Settings</b> &gt; <b>Apps</b> &gt; <b>Installed apps</b>, find <b>Battlefield 1942 &amp; Expansions</b> and click <b>Uninstall</b>. It removes the game folder and everything the installer added, including the CD key if setup or Battlefield 1942 Options created it. DirectX, Visual C++ and DirectPlay stay, because other games may use them. PunkBuster's background services are only removed if no other PunkBuster game is found on your PC.</p>
+<p>Go to <b>Settings</b> &gt; <b>Apps</b> &gt; <b>Installed apps</b>, find the game (<b>Battlefield 1942 &amp; Expansions</b>, unless your installer gave it another name) and click <b>Uninstall</b>. It removes the game folder and everything the installer added, including the CD key if setup or Battlefield 1942 Options created it. DirectX, Visual C++ and DirectPlay stay, because other games may use them. PunkBuster's background services are only removed if no other PunkBuster game is found on your PC.</p>
 <div class="box">Uninstalling deletes the whole game folder, including anything you added to it yourself, such as screenshots, extra maps or mods. Copy anything you want to keep somewhere else first.</div>
 </section>
 

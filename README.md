@@ -102,11 +102,11 @@ Eight pages, from Welcome to Finish. **[docs/WIZARD.md](docs/WIZARD.md) walks th
 | Battlefield 1942 game folder | With `Mods\xpack1` (The Road to Rome) and `Mods\xpack2` (Secret Weapons of WWII) |
 | ~6 GB free disk space | Downloads, staging and output |
 | ~4 GB free RAM | The build uses about 1.5 GB per compression thread and picks the thread count to fit. `-Smallest` needs about 12 GB |
-| Internet connection | Components are downloaded on the first build and cached |
+| Internet connection | Components are downloaded on the first build and cached. dgVoodoo2 (antivirus products flag files in its zip, so it isn't kept) and the latest Visual C++ redistributable are downloaded again for every build, so building needs a connection |
 
 | To install (your players) |
 |---|
-| Windows 10 version 1809 or later, or Windows 11, 32-bit or 64-bit. 1809 is the oldest Windows that BF1942 Options runs on, so Setup requires it. Borderless1942 and Rich Presence are 64-bit only and are hidden on 32-bit Windows |
+| Windows 10 version 1809 or later, or Windows 11, 32-bit or 64-bit. 1809 is the oldest Windows that BF1942 Options runs on, so Setup requires it. Borderless1942, DataField42 and Rich Presence are 64-bit only and are hidden on 32-bit Windows |
 | Administrator rights |
 | ~4 GB free disk space |
 
@@ -154,7 +154,7 @@ Eight pages, from Welcome to Finish. **[docs/WIZARD.md](docs/WIZARD.md) walks th
 | `outputBaseFilename` | `BF1942_Expansions_Setup` | File name of the built `.exe` (and of the `.bin` files of a split build). |
 | `defaultInstallDir` | `{sd}\EA Games\Battlefield 1942` | Default install folder. `{sd}` is the system drive. |
 | `appendEAGamesFolder` | `true` | Always install into `<chosen folder>\EA Games\Battlefield 1942`. Picking `C:\Temp` with **Browse...** shows `C:\Temp\EA Games\Battlefield 1942` right away, and a *"Will install to: …"* line under the box follows what the user types. |
-| `serverShortcutName` | *(empty)* | Name of the "join server" desktop shortcut. |
+| `serverShortcutName` | `Battlefield 1942 - Join Server` | Name of the "join server" desktop shortcut. Only used with `serverAddress`. |
 | `serverAddress` | *(empty)* | `ip:port` to join, for example `203.0.113.10:14567`. Leave empty for no server shortcut. |
 | `discordUrl` | *(empty)* | An invite to your community's Discord, for example `https://discord.gg/abc123`. BF1942 Options shows a **Join our Discord** button when it is set. |
 | `generateSerial` | `true` | Register a random serial when none is present. |
@@ -397,14 +397,14 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for adding new components.
 | Resolution | **Use my screen's resolution** rewrites every `Video*.con`, like Setup |
 | CD key | **Generate a CD key**, only when no valid key is registered (hidden when `generateSerial` is off). The uninstaller removes a key it generated |
 
-Extras your build left out show as *Not included in this installer*. DirectX, Visual C++, DirectPlay and the game itself always stay installed. DataField42, Battlefield Rich Presence and PunkBuster are separate programs, so they are added by running Setup again (Custom) and removed in Settings > Apps.
+Extras your build left out show as *Not included in this installer*. DirectX, Visual C++, DirectPlay and the game itself always stay installed. DataField42, Battlefield Rich Presence and PunkBuster are separate programs, so they are added by running Setup again (Custom) and removed in Settings > Apps. Running Setup again starts with the font and extras as they are in the game folder (unless `/COMPONENTS` or `/TASKS` is given), keeps dgVoodoo2 if the game runs it, and keeps the player's settings (profile and player name, controls, video, sound) as well as `bf42++.ini` and `alsoft.ini`. Installing to another folder than the existing install asks first, as the first copy would lose its entry in Installed apps.
 
 - **Where things live.** Setup installs the app in `{app}\Options\App` and keeps every fix it can switch, plus the game's original `menu.rfa` and `Battle_of_Britain.rfa`, in `{app}\Options`. Inno Setup stores identical source files once, so the setup file only grows by the app (about 17 MB).
 - **Left side.** The installer's art (or the game's name), then **Play**, **Join** (only with a server shortcut), **Join our Discord** (only with `discordUrl`), **Open game folder** and **Troubleshooting guide**, and the game folder. The app runs as administrator, so it starts the game, the folder and the guide through Explorer, which runs them as the signed-in user.
 - **Layout.** Two columns of cards that end on the same line. The window opens at the size that shows everything, can be made bigger (the page grows with it) but not smaller, and only on a screen too small for it does the options area turn into one scrolling column; the title, Apply and Close always stay in view.
 - **What is on** is read from the game folder every time: a file counts as on when it is identical to its copy in `Options`.
 - **Admin rights.** The app asks for them (UAC), because it writes to the game folder and to `registryStateKey`, and runs `sdbinst`. It logs every change to `{app}\Options\Options.log`.
-- **Build.** `build.ps1` publishes it with the .NET 10 SDK (32-bit, self-contained and trimmed, so players need no .NET or Windows App SDK) to `build\options`, about 70 MB, and adds `options.json` (`registryStateKey`, `generateSerial`, the server shortcut's name and address, and `discordUrl`) and `cover.bmp` (your largest `branding\WizardImage*.bmp`).
+- **Build.** `build.ps1` publishes it with the .NET 10 SDK (32-bit, self-contained and trimmed, so players need no .NET or Windows App SDK) to `build\options`, about 70 MB, and adds `options.json` (`registryStateKey`, `generateSerial`, the server shortcut's name and address, `discordUrl`, and the separate programs the build includes) and `cover.bmp` (your largest `branding\WizardImage*.bmp`).
 - **Running Setup again** puts back every required fix and the extras it was told to install.
 
 ## Troubleshooting guide

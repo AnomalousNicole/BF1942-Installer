@@ -52,7 +52,9 @@ And the notes at the end - serial handling, the skip-intro option and how to uni
 
 The default folder is `defaultInstallDir` in `config.json`. The required disk space is measured at build time.
 
-With `appendEAGamesFolder` on, the installer makes sure the path ends in `EA Games\Battlefield 1942`: whatever the player types or browses to is treated as the parent folder. The **Will install to:** line under the box shows the resulting path as it is typed, so the correction is never a surprise.
+With `appendEAGamesFolder` on, the installer makes sure the path ends in `EA Games\Battlefield 1942`: whatever the player types or browses to gets it added, unless the path already ends with it. The **Will install to:** line under the box shows the resulting path as it is typed, so the correction is never a surprise.
+
+When the game is already installed in another folder, **Next** asks before installing a second copy: the first copy stays, but it loses its entry in Installed apps.
 
 ## 4. Select Components
 
@@ -64,7 +66,7 @@ Scrolling down reaches the rest of the extras and the font, where exactly one si
 
 ![Select Components, font sizes](images/wizard/08-select-components-2.jpg)
 
-Borderless1942 and Battlefield Rich Presence are hidden on 32-bit Windows. Anything listed in `exclude`, or missing from `extras\`, is not offered at all.
+Borderless1942, DataField42 and Battlefield Rich Presence are hidden on 32-bit Windows. Anything listed in `exclude`, or missing from `extras\`, is not offered at all. When Setup runs again over an existing install, the font and extras start the way they are in the game folder, so changes made in BF1942 Options since are kept.
 
 ## 5. Select Additional Tasks
 
