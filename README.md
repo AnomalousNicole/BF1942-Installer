@@ -385,6 +385,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for adding new components.
 
 `installer\BF1942Options` is a WinUI 3 app that lets players change their mind after install. Its source is in [BF1942-Installer-Options](https://github.com/AnomalousNicole/BF1942-Installer-Options), which this repository includes as a git submodule. It has one page with every option on it, in a Battlefield 1942 theme (brass and khaki on near-black, with your `branding\` art down the left side when you supply it), and uses the game's `bf1942.ico`, like Setup.
 
+![Battlefield 1942 Options after a default install: the graphics fix, game fixes, CD key, extras and display options on one page](docs/images/options.png)
+
 | Can be switched | How |
 |---|---|
 | Graphics fix: DXVK or dgVoodoo2 | Swaps `d3d8.dll` / `d3d9.dll`. `dxvk.conf` and `dgVoodoo.conf` stay with the player's settings (each fix reads only its own; a missing one is put back). **Check my graphics card** runs `VulkanCheck.exe`, like Setup |
@@ -461,6 +463,7 @@ BF1942-Installer/
 └── docs/
     ├── TECHNICAL.md          # How it works, in detail
     ├── WIZARD.md             # The wizard, page by page, with screenshots
+    ├── images/               # The wizard screenshots and one of BF1942 Options
     └── manual/               # The troubleshooting guide (HTML), printed to PDF for the game's manual folder
 ```
 

@@ -15,6 +15,8 @@ The screenshots are from an installer built by this repository's `build.ps1` wit
 | 7 | [Installing](#7-installing) | - |
 | 8 | [Completing](#8-completing) | Launch the game |
 
+After install, players change their choices in [Battlefield 1942 Options](#after-install-battlefield-1942-options) instead of running Setup again.
+
 ---
 
 ## 1. Welcome
@@ -102,3 +104,11 @@ Extracts the game and the selected components, then runs the prerequisites that 
 ![Completing](images/wizard/14-finish.jpg)
 
 Offers to launch the game, which then runs as the player rather than as administrator. The uninstaller is registered with Windows, so the install can be removed from Settings > Apps > Installed apps.
+
+---
+
+## After install: Battlefield 1942 Options
+
+![Battlefield 1942 Options after a default install: the graphics fix, game fixes, CD key, extras and display options on one page](images/options.png)
+
+Setup installs **Battlefield 1942 Options** with a Start menu shortcut, and a desktop shortcut unless the player unticks it on the [Select Additional Tasks](#5-select-additional-tasks) page. It turns the graphics fix, BF42++, 3D audio, the extras and the font size on or off without the setup file, and has **Play** and the troubleshooting guide. The screenshot shows it right after a default install from the stock config; **Join** and **Join our Discord** appear when `serverAddress` and `discordUrl` are set, and your `branding\` art fills the left side. See [Battlefield 1942 Options](../README.md#battlefield-1942-options) in the README for what each option does.
