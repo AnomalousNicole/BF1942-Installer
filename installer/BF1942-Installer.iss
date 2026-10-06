@@ -405,11 +405,9 @@ Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""$d = '{code:PSApp}\'; Get-NetFirewallApplicationFilter | Where-Object {{ $_.Program -and $_.Program.StartsWith($d, [StringComparison]::OrdinalIgnoreCase) } | Get-NetFirewallRule | Remove-NetFirewallRule"""; RunOnceId: "RemoveFirewallRules32"; Check: not IsWin64; Flags: runhidden waituntilterminated
 
 [InstallDelete]
-; Installing over an earlier install: the files of the graphics fix that is not being installed go first, so
-; DXVK's d3d9.dll and dxvk.conf don't stay next to dgVoodoo2, or dgVoodoo.conf next to DXVK (d3d8.dll is replaced)
+; Installing over an earlier install with DXVK: its d3d9.dll goes first, so it doesn't stay next to dgVoodoo2 (d3d8.dll
+; is replaced). dxvk.conf and dgVoodoo.conf stay with the player's settings: each fix reads only its own
 Type: files; Name: "{app}\d3d9.dll"; Check: not UseDXVK
-Type: files; Name: "{app}\dxvk.conf"; Check: not UseDXVK
-Type: files; Name: "{app}\dgVoodoo.conf"; Check: UseDXVK
 
 [UninstallDelete]
 ; Remove everything in the install folder, including files the game/tools created after install - unless the folder

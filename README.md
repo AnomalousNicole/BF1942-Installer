@@ -387,7 +387,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for adding new components.
 
 | Can be switched | How |
 |---|---|
-| Graphics fix: DXVK or dgVoodoo2 | Swaps `d3d8.dll` / `d3d9.dll` and their config. **Check my graphics card** runs `VulkanCheck.exe`, like Setup |
+| Graphics fix: DXVK or dgVoodoo2 | Swaps `d3d8.dll` / `d3d9.dll`. `dxvk.conf` and `dgVoodoo.conf` stay with the player's settings (each fix reads only its own; a missing one is put back). **Check my graphics card** runs `VulkanCheck.exe`, like Setup |
 | BF42++ and 3D positional audio | Each on its own. With BF42++ on, DSOAL is `dsound_next.dll` behind BF42++'s `dsound.dll`; without it, DSOAL is `dsound.dll`. `bf42++.ini` and `alsoft.ini` are kept |
 | Font size | Copies one of the fonts Setup keeps in `{app}\Options\Fonts` (from `extras\Fonts` at build time) |
 | Higher resolution UI, Battle of Britain siren | Swaps `menu.rfa` / `Battle_of_Britain.rfa` with the modified or original copy |

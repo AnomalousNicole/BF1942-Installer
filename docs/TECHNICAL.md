@@ -136,7 +136,7 @@ The game's settings in `Mods\bf1942\Settings` (profile and player name, controls
 
 Installing over an earlier install, the component list starts as the game folder has it (the font, Higher resolution UI, the Battle of Britain siren, Borderless1942, the Compatibility Profile, and Skip intro from the state key), unless `/COMPONENTS` or `/TASKS` is given. Installing to another folder than the existing install asks first (silent installs only log it).
 
-Before any file is copied, `[InstallDelete]` removes the files of the graphics fix that is not being installed (`d3d9.dll` and `dxvk.conf` for dgVoodoo2, `dgVoodoo.conf` for DXVK), so installing over an earlier install that used the other one leaves none of its files behind.
+Before any file is copied, `[InstallDelete]` removes DXVK's `d3d9.dll` when dgVoodoo2 is being installed (`d3d8.dll` is replaced either way). `dxvk.conf` and `dgVoodoo.conf` stay, with the player's settings, as only DXVK reads the one and only dgVoodoo2 the other; BF1942 Options does the same when it switches.
 
 1. `dism /online /enable-feature /featurename:DirectPlay /all`: only if the WMI `Win32_OptionalFeature` InstallState is not 1. Uses the 64-bit `dism` on x64.
 2. `DXSETUP.exe /silent`: only if any June 2010 x86 DLL is missing from `SysWOW64`.
