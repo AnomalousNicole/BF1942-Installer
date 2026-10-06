@@ -97,6 +97,7 @@ It returns `1` when no device does, which means dgVoodoo2. If the check fails (t
 | `Electronic Arts\EA GAMES\Battlefield 1942\ergc` (default value) = random `[A-Z0-9]{22}` | `generateSerial` is on and no valid serial exists | Only if the installer created it |
 | `<registryStateKey>\Renderer`, `DataField42`, `RichPresence`, `PunkBuster` | Always / per component | The whole key |
 | `<registryStateKey>\VerBF42PP`, `VerDXVK`, `VerDgVoodoo2`, `SkipIntro` | Always, read by BF1942 Options | The whole key |
+| `<registryStateKey>\WholeFolder` = `1`/`0` | Always: whether uninstalling deletes the whole folder, kept for when Setup runs again | The whole key |
 | `<registryStateKey>\SerialCreated` = `1` | BF1942 Options generated a CD key | The whole key; the uninstaller then also deletes `ergc` |
 
 ### Display mode
@@ -131,9 +132,9 @@ With `appendEAGamesFolder`, the chosen folder is normalised to `…\EA Games\Bat
 
 ## 4. Install order (`[Run]`)
 
-The game's settings in `Mods\bf1942\Settings` (profile and player name, controls, video, sound, server settings), `bf42++.ini` and `alsoft.ini` are only copied when missing, so installing over an earlier install keeps the player's own. Setup then sets the resolution in every `Video*.con` and `renderer.setFullScreen` in `VideoDefault.con` (0 with Borderless1942, 1 without). `/COMPONENTS` without a font installs the default font if the folder has none, as the game's own `Font.rfa` is never copied.
+The game's settings in `Mods\bf1942\Settings` (profile and player name, controls, video, sound, server settings), `bf42++.ini`, `alsoft.ini`, `dxvk.conf` and `dgVoodoo.conf` are only copied when missing, so installing over an earlier install keeps the player's own. Unticking Borderless1942 or the Compatibility Profile on a later run removes `Borderless1942.exe` (and this folder's Borderless shortcut) or unregisters and removes `BF1942.sdb`, as BF1942 Options does. Setup then sets the resolution in every `Video*.con` and `renderer.setFullScreen` in `VideoDefault.con` (0 with Borderless1942, 1 without). `/COMPONENTS` without a font installs the default font if the folder has none, as the game's own `Font.rfa` is never copied.
 
-Installing over an earlier install, the component list starts as the game folder has it (the font, Higher resolution UI, the Battle of Britain siren, and Skip intro from the state key), unless `/COMPONENTS` or `/TASKS` is given. Installing to another folder than the existing install asks first (silent installs only log it).
+Installing over an earlier install, the component list starts as the game folder has it (the font, Higher resolution UI, the Battle of Britain siren, Borderless1942, the Compatibility Profile, and Skip intro from the state key), unless `/COMPONENTS` or `/TASKS` is given. Installing to another folder than the existing install asks first (silent installs only log it).
 
 Before any file is copied, `[InstallDelete]` removes the files of the graphics fix that is not being installed (`d3d9.dll` and `dxvk.conf` for dgVoodoo2, `dgVoodoo.conf` for DXVK), so installing over an earlier install that used the other one leaves none of its files behind.
 
@@ -159,11 +160,11 @@ It deletes the whole game folder, also files the game made later, when that fold
 | Borderless shortcut | Deleted, also when BF1942 Options created it |
 | PunkBuster setup window | Any `pbsvc.exe` still running from `{app}` is closed |
 | Firewall | Every rule whose program is under `{app}\` is removed, such as the auto-created `bf1942` TCP/UDP rules |
-| DataField42 | Only when DataField42 is installed in this game folder (also when the player installed it there, as the folder is deleted anyway); one installed for another folder stays. A running DataField42 from the folder is closed, then its own uninstaller runs with `/VERYSILENT`. The uninstaller waits until its uninstall entry is gone. |
+| DataField42 | Only when DataField42 is installed in this game folder (also when the player installed it there, as its files are in the folder); one installed for another folder stays. A running DataField42 from the folder is closed, then its own uninstaller runs with `/VERYSILENT`. The uninstaller waits until its uninstall entry is gone. |
 | Rich Presence | `msiexec /x {ProductCode} /qn`, only when Setup installed it: a Rich Presence that was there before (it serves other Battlefield games too) stays |
 | "Punkbuster for Battlefield 1942" | Its uninstall key and Start menu folder are deleted, but only if the entry points into `{app}` |
 | PunkBuster Services | Removed **only when no other PunkBuster game is found** (see below) |
-| Files and registry | `{app}` is deleted recursively, then the registry values listed in §3 are removed |
+| Files and registry | `{app}` is deleted recursively when the folder was new, empty or already held the game when Setup first installed there (`WholeFolder` in the state key keeps that decision when Setup runs again); otherwise only what Setup installed, then the registry values listed in §3 are removed |
 
 DirectX, VC++, .NET and DirectPlay are left installed because other software may use them.
 

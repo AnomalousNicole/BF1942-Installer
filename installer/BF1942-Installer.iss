@@ -258,8 +258,11 @@ Source: "{#Deps}\hrtf\*"; Excludes: "*.txt,alsoft.ini"; DestDir: "{app}"; Compon
 Source: "{#Deps}\bf42pp\bf42++.ini"; DestDir: "{app}"; Components: required\bf42pp; Flags: onlyifdoesntexist
 Source: "{#Deps}\hrtf\alsoft.ini"; DestDir: "{app}"; Components: required\hrtf; Flags: onlyifdoesntexist
 Source: "{#Deps}\hrtf\*.txt"; DestDir: "{app}\Licenses"; Components: required\hrtf; Flags: ignoreversion
-Source: "{#Deps}\dxvk\*"; DestDir: "{app}"; Components: required\renderer; Check: UseDXVK; Flags: ignoreversion
-Source: "{#Deps}\dgvoodoo2\*"; DestDir: "{app}"; Components: required\renderer; Check: not UseDXVK; Flags: ignoreversion
+Source: "{#Deps}\dxvk\*"; Excludes: "dxvk.conf"; DestDir: "{app}"; Components: required\renderer; Check: UseDXVK; Flags: ignoreversion
+; The renderer's config file only when missing, so the player's own settings in it stay
+Source: "{#Deps}\dxvk\dxvk.conf"; DestDir: "{app}"; Components: required\renderer; Check: UseDXVK; Flags: onlyifdoesntexist
+Source: "{#Deps}\dgvoodoo2\*"; Excludes: "dgVoodoo.conf"; DestDir: "{app}"; Components: required\renderer; Check: not UseDXVK; Flags: ignoreversion
+Source: "{#Deps}\dgvoodoo2\dgVoodoo.conf"; DestDir: "{app}"; Components: required\renderer; Check: not UseDXVK; Flags: onlyifdoesntexist
 
 ; Redistributables (temporary only)
 Source: "{#Deps}\directx\*"; DestDir: "{tmp}\dxredist"; Components: required\directx; Check: DirectXNeeded; Flags: deleteafterinstall
@@ -324,6 +327,8 @@ Root: HKLM32; Subkey: "SOFTWARE\Electronic Arts\EA GAMES\Battlefield 1942\ergc";
 Root: HKLM32; Subkey: "{#StateKeyParent}"; Flags: uninsdeletekeyifempty
 #endif
 Root: HKLM32; Subkey: "{#StateKey}"; ValueType: string; ValueName: "Renderer"; ValueData: "{code:GetRendererName}"; Flags: uninsdeletekey
+; Whether uninstalling deletes the whole folder (FolderIsGameFolder), kept for when Setup runs again over it
+Root: HKLM32; Subkey: "{#StateKey}"; ValueType: string; ValueName: "WholeFolder"; ValueData: "{code:WholeFolderValue}"; Flags: uninsdeletekey
 ; Read by BF1942 Options: the versions it shows, and whether its shortcuts skip the intro
 Root: HKLM32; Subkey: "{#StateKey}"; ValueType: string; ValueName: "VerBF42PP"; ValueData: "{#Ver_bf42pp}"; Flags: uninsdeletekey
 Root: HKLM32; Subkey: "{#StateKey}"; ValueType: string; ValueName: "VerDXVK"; ValueData: "{#Ver_dxvk}"; Flags: uninsdeletekey
@@ -1449,17 +1454,21 @@ var
 
 { Whether uninstalling may delete the whole install folder: it was new or empty, or it already held the game
   (an earlier install). A folder with other things in it, and no game, keeps them. Decided before any file is
-  copied (ssInstall), as [UninstallDelete] is set up during the install. }
+  copied (ssInstall), as [UninstallDelete] is set up during the install. Running Setup again over its own install
+  keeps what the first install decided (WholeFolder in the state key): BF1942.exe is in the folder by then. }
 function FolderIsGameFolder: Boolean;
 var
-  Dir: String;
+  Dir, Value: String;
   Rec: TFindRec;
 begin
   if not FolderChecked then begin
     FolderChecked := True;
     Dir := ExpandConstant('{app}');
     FolderIsGame := True;
-    if DirExists(Dir) and not FileExists(AddBackslash(Dir) + 'BF1942.exe') then
+    if PathSame(RemoveBackslashUnlessRoot(WizardForm.PrevAppDir), Dir) and
+       RegQueryStringValue(HKLM32, StateKey, 'WholeFolder', Value) then
+      FolderIsGame := Value = '1'
+    else if DirExists(Dir) and not FileExists(AddBackslash(Dir) + 'BF1942.exe') then
       if FindFirst(AddBackslash(Dir) + '*', Rec) then
         try
           repeat
@@ -1474,9 +1483,53 @@ begin
   Result := FolderIsGame;
 end;
 
+function WholeFolderValue(Param: String): String;
+begin
+  if FolderIsGameFolder then Result := '1' else Result := '0';
+end;
+
+{ Running Setup again with Borderless1942 or the Compatibility Profile unticked turns them off, as BF1942 Options
+  does: they are in the game folder by now, and nothing else would remove them }
+procedure RemoveUnselectedExtras;
+var
+  Path, Cmd: String;
+  Code: Integer;
+  Shell, Lnk: Variant;
+begin
+#if Has_borderless1942
+  Path := ExpandConstant('{app}\Borderless1942.exe');
+  if IsWin64 and FileExists(Path) and not WizardIsComponentSelected('borderless') then begin
+    Log('Borderless1942 is unticked - removing it');
+    DeleteFile(Path);
+    { Its desktop shortcut too, when it is this folder's }
+    Path := ExpandConstant('{autodesktop}\Battlefield 1942 (Borderless).lnk');
+    if FileExists(Path) then
+      try
+        Shell := CreateOleObject('WScript.Shell');
+        Lnk := Shell.CreateShortcut(Path);
+        if Pos(Lowercase(AddBackslash(ExpandConstant('{app}'))), Lowercase(Lnk.TargetPath)) = 1 then DeleteFile(Path);
+      except
+        Log('Could not read ' + Path + ': ' + GetExceptionMessage);
+      end;
+  end;
+#endif
+#if Has_compat
+  Path := ExpandConstant('{app}\BF1942.sdb');
+  if FileExists(Path) and not WizardIsComponentSelected('compat') then begin
+    Log('The Compatibility Profile is unticked - removing it');
+    if IsWin64 then Cmd := ExpandConstant('{sysnative}\sdbinst.exe') else Cmd := ExpandConstant('{sys}\sdbinst.exe');
+    Exec(Cmd, '-q -u "' + Path + '"', '', SW_HIDE, ewWaitUntilTerminated, Code);
+    DeleteFile(Path);
+  end;
+#endif
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
-  if CurStep = ssInstall then FolderIsGameFolder;
+  if CurStep = ssInstall then begin
+    FolderIsGameFolder;
+    RemoveUnselectedExtras;
+  end;
   if CurStep = ssPostInstall then begin
     ConfigureDisplayMode;
     { Also when Borderless1942.exe is already there (turned on in BF1942 Options, or by an earlier install):

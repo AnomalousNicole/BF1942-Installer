@@ -579,7 +579,8 @@ if ($dxvk.Count -ne 1 -or $dxvk[0].version.TrimStart('v') -ne $DxvkVersion -or
 }
 
 # An id that matches nothing (a typo, or a Setup component name such as "borderless") would ship the component anyway
-$knownIds = @($manifest.components | ForEach-Object { $_.id.ToLower() }) + @($manifest.extras | ForEach-Object { $_.id.ToLower() })
+# (a components.json without extras pipes $null, which ForEach-Object would still run once for)
+$knownIds = @(@($manifest.components) + @($manifest.extras) | Where-Object { $_ } | ForEach-Object { $_.id.ToLower() })
 $unknownIds = @($exclude | Where-Object { $knownIds -notcontains $_ })
 if ($unknownIds.Count -gt 0) {
     Stop-Build ("config.json excludes $(($unknownIds | ForEach-Object { "'$_'" }) -join ', '), which is not a component or extra id.`n" +
