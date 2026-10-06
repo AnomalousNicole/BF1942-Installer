@@ -831,6 +831,12 @@ if (-not (Test-Path -LiteralPath $optionsProject)) {
     }
 }
 if (Test-Path -LiteralPath $OptionsDir) { Remove-Item -LiteralPath $OptionsDir -Recurse -Force }
+# A clean publish every time: an incremental one can keep a stale BF1942 Options.deps.json that misses an
+# assembly new code needs (System.Text.RegularExpressions once), and the app then fails to start reading
+foreach ($dir in 'obj', 'bin') {
+    $stale = Join-Path (Split-Path $optionsProject) $dir
+    if (Test-Path -LiteralPath $stale) { Remove-Item -LiteralPath $stale -Recurse -Force }
+}
 $ErrorActionPreference = 'Continue'
 # The game's icon for the app, when there is one (a -Quick build can run without the game folder)
 $iconArg = @(if (Test-Path -LiteralPath $icon) { "-p:GameIcon=$icon" })
