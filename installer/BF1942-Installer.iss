@@ -189,7 +189,7 @@ Name: "optionsicon"; Description: "Create a desktop shortcut to Battlefield 1942
 Name: "skipintro"; Description: "Skip the intro videos (adds +restart 1 to the shortcut)"; GroupDescription: "Game options:"
 
 [Files]
-; Helper used to decide between DXVK and dgVoodoo2 (never installed)
+; Helper used to decide between DXVK and dgVoodoo2 (Setup runs it from {tmp}; BF1942 Options' copy is installed below)
 Source: "{#BuildDir}\VulkanCheck.exe"; Flags: dontcopy
 
 ; Base game (the Tools folder is not shipped - DirectX/DirectPlay are handled by the installer)
@@ -407,8 +407,9 @@ Type: files; Name: "{app}\dxvk.conf"; Check: not UseDXVK
 Type: files; Name: "{app}\dgVoodoo.conf"; Check: UseDXVK
 
 [UninstallDelete]
-; Remove everything in the install folder, including files the game/tools created after install
-Type: filesandordirs; Name: "{app}"
+; Remove everything in the install folder, including files the game/tools created after install - unless the folder
+; held something else than a game before Setup ran (see FolderIsGameFolder): then only what Setup installed goes
+Type: filesandordirs; Name: "{app}"; Check: FolderIsGameFolder
 ; BF1942 Options creates this shortcut when Borderless1942 is turned on after install
 Type: files; Name: "{autodesktop}\Battlefield 1942 (Borderless).lnk"
 
@@ -530,6 +531,12 @@ begin
   Result := SameFileContent(ExpandConstant('{app}\d3d8.dll'), ExpandConstant('{app}\Options\dgVoodoo2\D3D8.dll'));
 end;
 
+var
+  RendererFor: String;                 { the folder the renderer was picked for }
+  VulkanChecked, VulkanDxvk: Boolean;  { the graphics card check, which runs (and may ask) only once }
+  VulkanInfo: String;
+
+{ Once per folder: going back and picking another folder, which may or may not run dgVoodoo2, decides again }
 procedure DetectRenderer;
 var
   Forced: String;
@@ -537,8 +544,9 @@ var
   Code, I: Integer;
   CheckFailed: Boolean;
 begin
-  if RendererDetected then Exit;
+  if RendererDetected and PathSame(RendererFor, WizardDirValue) then Exit;
   RendererDetected := True;
+  RendererFor := WizardDirValue;
   DxvkSupported := False;
   RendererInfo := '';
 
@@ -554,7 +562,10 @@ begin
       did, and switching to DXVK by itself could bring a black screen back. Over DXVK the check runs again, so a
       card that can't run it (such as an AMD RX 400/500) still gets dgVoodoo2. }
     RendererInfo := 'dgVoodoo2 kept: the game folder already runs it (BF1942 Options switches it)' + #13#10
-  else begin
+  else if VulkanChecked then begin
+    DxvkSupported := VulkanDxvk;
+    RendererInfo := VulkanInfo;
+  end else begin
     { Only exit code 1 means the GPU can't run DXVK. If the check itself fails (often an
       antivirus blocking VulkanCheck.exe) the answer is unknown, so the user picks instead }
     CheckFailed := True;
@@ -586,6 +597,9 @@ begin
       else
         RendererInfo := RendererInfo + 'dgVoodoo2 chosen because the Vulkan check failed' + #13#10;
     end;
+    VulkanChecked := True;
+    VulkanDxvk := DxvkSupported;
+    VulkanInfo := RendererInfo;
   end;
   Log('Renderer detection: DXVK supported = ' + IntToStr(Ord(DxvkSupported)) + #13#10 + RendererInfo);
 end;
@@ -646,7 +660,7 @@ procedure VCRedistAfterInstall;
 begin
   if not VCRuntimeFilesPresent then begin
     Log('Visual C++ x86 runtime files are still missing after running the redistributable');
-    SuppressibleMsgBox('The Visual C++ Redistributable (x86) could not restore MSVCP140.dll, so Battlefield 1942 will not start yet.' + #13#10#13#10 +
+    SuppressibleMsgBox('The Visual C++ Redistributable (x86) could not restore its files (msvcp140.dll and vcruntime140.dll), so Battlefield 1942 will not start yet.' + #13#10#13#10 +
       'To fix this, open Settings > Apps > Installed apps, find "Microsoft Visual C++ Redistributable (x86)", choose Modify and then Repair. ' +
       'You can also reinstall it from https://aka.ms/vs/17/release/vc_redist.x86.exe', mbError, MB_OK, IDOK);
   end;
@@ -981,11 +995,16 @@ end;
 
 { ---------- Installing over an earlier install ---------- }
 
-{ The game folder for a single-quoted PowerShell string ([UninstallRun]): an apostrophe in its name is doubled }
+{ The game folder for a single-quoted PowerShell string ([UninstallRun]): an apostrophe in its name is doubled,
+  also a typographic one, which PowerShell reads as a quote too }
 function PSApp(Param: String): String;
 begin
   Result := ExpandConstant('{app}');
   StringChangeEx(Result, '''', '''''', True);
+  StringChangeEx(Result, #$2018, #$2018#$2018, True);
+  StringChangeEx(Result, #$2019, #$2019#$2019, True);
+  StringChangeEx(Result, #$201A, #$201A#$201A, True);
+  StringChangeEx(Result, #$201B, #$201B#$201B, True);
 end;
 
 { /COMPONENTS on the command line deselects every font it doesn't list, and the game's own Font.rfa is never
@@ -1032,10 +1051,10 @@ begin
       mbConfirmation, MB_YESNO) = IDYES;
 end;
 
-{ Installing over a game folder: the font, the extras Setup switches by itself and the skip-intro choice start as
-  they are in the folder now, so running Setup again doesn't undo what was changed in BF1942 Options since. (The
-  renderer: DetectRenderer. Borderless1942 and the Compatibility Profile stay as they are anyway.) /COMPONENTS and
-  /TASKS on the command line still decide. }
+{ Installing over a game folder: the font, the extras and the skip-intro choice start as they are in the folder now,
+  so running Setup again doesn't undo what was changed in BF1942 Options since (the renderer: DetectRenderer).
+  /COMPONENTS and /TASKS on the command line still decide. The required fixes, BF42++ and 3D audio, are always put
+  back: they are what Setup is run again for. }
 var
   SelectedFor: String;   { the folder the component list was last set up for }
 
@@ -1103,6 +1122,21 @@ begin
       else
         WizardSelectComponents('!bobsiren');
     end;
+#endif
+    { Without these, Setup would install them again from the components picked last time }
+#if Has_borderless1942
+    if IsWin64 then begin
+      if FileExists(AddBackslash(WizardDirValue) + 'Borderless1942.exe') then
+        WizardSelectComponents('borderless')
+      else
+        WizardSelectComponents('!borderless');
+    end;
+#endif
+#if Has_compat
+    if FileExists(AddBackslash(WizardDirValue) + 'BF1942.sdb') then
+      WizardSelectComponents('compat')
+    else
+      WizardSelectComponents('!compat');
 #endif
     Log('Components as the game folder has them: ' + WizardSelectedComponents(False));
   end;
@@ -1285,6 +1319,7 @@ begin
     L('    {#Url_dgvoodoo2}') +
     L('    The installer detects whether your graphics card supports DXVK {#Ver_dxvk}') +
     L('    (Vulkan 1.3 driver). If it does DXVK is installed, otherwise dgVoodoo2.') +
+    L('    A game folder that already runs dgVoodoo2 keeps it.') +
     L('') +
     L('  HRTF 3D audio - DSOAL + OpenAL Soft, developed by Chris Robinson (kcat)') +
     L('    https://github.com/kcat/dsoal') +
@@ -1380,7 +1415,7 @@ begin
   else
     Result := Result + Space + 'DirectX (June 2010): already installed - skipped' + NewLine;
   if VCRedistNeeded and VCRepair then
-    Result := Result + Space + 'Visual C++ Redistributable (x86): registered but MSVCP140.dll is missing - will be repaired' + NewLine
+    Result := Result + Space + 'Visual C++ Redistributable (x86): registered but its files are missing - will be repaired' + NewLine
   else if VCRedistNeeded then
     Result := Result + Space + 'Visual C++ Redistributable (x86): will be installed' + NewLine
   else
@@ -1409,8 +1444,39 @@ begin
   ;
 end;
 
+var
+  FolderChecked, FolderIsGame: Boolean;
+
+{ Whether uninstalling may delete the whole install folder: it was new or empty, or it already held the game
+  (an earlier install). A folder with other things in it, and no game, keeps them. Decided before any file is
+  copied (ssInstall), as [UninstallDelete] is set up during the install. }
+function FolderIsGameFolder: Boolean;
+var
+  Dir: String;
+  Rec: TFindRec;
+begin
+  if not FolderChecked then begin
+    FolderChecked := True;
+    Dir := ExpandConstant('{app}');
+    FolderIsGame := True;
+    if DirExists(Dir) and not FileExists(AddBackslash(Dir) + 'BF1942.exe') then
+      if FindFirst(AddBackslash(Dir) + '*', Rec) then
+        try
+          repeat
+            if (Rec.Name <> '.') and (Rec.Name <> '..') then FolderIsGame := False;
+          until (not FolderIsGame) or not FindNext(Rec);
+        finally
+          FindClose(Rec);
+        end;
+    if not FolderIsGame then
+      Log('The install folder has other files and no game: uninstalling removes only what Setup installed');
+  end;
+  Result := FolderIsGame;
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
+  if CurStep = ssInstall then FolderIsGameFolder;
   if CurStep = ssPostInstall then begin
     ConfigureDisplayMode;
     { Also when Borderless1942.exe is already there (turned on in BF1942 Options, or by an earlier install):

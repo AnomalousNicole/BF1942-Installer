@@ -61,7 +61,7 @@ Everything that depends on an optional component is wrapped in `#if Has_<id>` in
 
 ## 2. Renderer detection (DXVK vs dgVoodoo2)
 
-`VulkanCheck.exe` is extracted to `{tmp}` and never installed. It is 32-bit on purpose, because BF1942 is 32-bit and DXVK will use the 32-bit Vulkan loader (`SysWOW64\vulkan-1.dll`). It calls `vulkan-1.dll` directly (P/Invoke) and returns `0` when at least one non-CPU device offers all of these:
+Setup runs `VulkanCheck.exe` from `{tmp}`; the copy in `{app}\Options` is for BF1942 Options' **Check my graphics card**. It is 32-bit on purpose, because BF1942 is 32-bit and DXVK will use the 32-bit Vulkan loader (`SysWOW64\vulkan-1.dll`). It calls `vulkan-1.dll` directly (P/Invoke) and returns `0` when at least one non-CPU device offers all of these:
 
 - Vulkan API version **1.3** or higher
 - `VK_EXT_robustness2` or `VK_KHR_robustness2`
@@ -149,6 +149,8 @@ Before any file is copied, `[InstallDelete]` removes the files of the graphics f
 ---
 
 ## 5. Uninstall
+
+It deletes the whole game folder, also files the game made later, when that folder was new, empty or already held the game when Setup ran. A folder that held other files and no game (possible with `appendEAGamesFolder: false`) keeps them: only what Setup installed is removed.
 
 | Step | Action |
 |---|---|

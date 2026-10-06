@@ -2,7 +2,7 @@
 
 What a player sees when they run your `Setup.exe`, page by page.
 
-The screenshots are from an installer built by this repository's `build.ps1` with the stock [`config.json`](../config.json). Wording, versions and the list of optional components follow your own config, [`components.json`](../components.json) and `extras\`, so your build will differ in the details: the window title is `installerTitle`, the name in the text is `appName`, and a component only appears if you ship it.
+The screenshots are from an installer built by this repository's `build.ps1` with the stock config ([`config.example.json`](../config.example.json)). Wording, versions and the list of optional components follow your own config, [`components.json`](../components.json) and `extras\`, so your build will differ in the details: the window title is `installerTitle`, the name in the text is `appName`, and a component only appears if you ship it.
 
 | # | Page | Player chooses |
 |---|---|---|

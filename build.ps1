@@ -427,7 +427,7 @@ function Expand-DirectXSfx([byte[]]$Bytes, [string]$Name, [string]$Dest) {
         $sfx = Join-Path $tmp $Name
         [IO.File]::WriteAllBytes($sfx, $Bytes)
         $p = Start-Process -FilePath $sfx -ArgumentList @('/Q', ('/T:"' + $Dest + '"')) -Wait -PassThru
-        if ($p.ExitCode -ne 0 -or -not (Test-Path (Join-Path $Dest 'DXSETUP.exe'))) {
+        if ($p.ExitCode -ne 0 -or -not (Test-Path -LiteralPath (Join-Path $Dest 'DXSETUP.exe'))) {
             Stop-Build "Could not extract $Name (exit code $($p.ExitCode))"
         }
     } finally { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue }
@@ -578,6 +578,14 @@ if ($dxvk.Count -ne 1 -or $dxvk[0].version.TrimStart('v') -ne $DxvkVersion -or
     Stop-Build "components.json must use DXVK $DxvkVersion - newer DXVK releases do not work with Battlefield 1942."
 }
 
+# An id that matches nothing (a typo, or a Setup component name such as "borderless") would ship the component anyway
+$knownIds = @($manifest.components | ForEach-Object { $_.id.ToLower() }) + @($manifest.extras | ForEach-Object { $_.id.ToLower() })
+$unknownIds = @($exclude | Where-Object { $knownIds -notcontains $_ })
+if ($unknownIds.Count -gt 0) {
+    Stop-Build ("config.json excludes $(($unknownIds | ForEach-Object { "'$_'" }) -join ', '), which is not a component or extra id.`n" +
+                "       Use a list of ids from components.json: $($knownIds -join ', ')")
+}
+
 $included = @{}
 foreach ($c in $manifest.components) {
     $dest = Join-Path $DepsDir $c.id
@@ -634,7 +642,7 @@ foreach ($c in $manifest.components) {
     }
     # Tracked files for this component (configs, bundled LGPL binaries) - components\<id>\
     $overlay = Join-Path $Root "components\$($c.id)"
-    if (Test-Path -LiteralPath $overlay) { Copy-Item -Path (Join-Path $overlay '*') -Destination $dest -Recurse -Force }
+    if (Test-Path -LiteralPath $overlay) { Get-ChildItem -LiteralPath $overlay | Copy-Item -Destination $dest -Recurse -Force }
     $included[$c.id] = $c
     $pin = ''
     if ($resolvedNote) { $pin = " ($resolvedNote)" }
@@ -682,7 +690,7 @@ if ($Package7z -and -not $DownloadOnly) {
 Write-Step 'VulkanCheck helper'
 $vkSrc = Join-Path $Root 'installer\VulkanCheck.cs'
 $vkExe = Join-Path $BuildDir 'VulkanCheck.exe'
-if (-not (Test-Path -LiteralPath $vkExe) -or (Get-Item $vkSrc).LastWriteTimeUtc -gt (Get-Item $vkExe).LastWriteTimeUtc) {
+if (-not (Test-Path -LiteralPath $vkExe) -or (Get-Item -LiteralPath $vkSrc).LastWriteTimeUtc -gt (Get-Item -LiteralPath $vkExe).LastWriteTimeUtc) {
     $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319\csc.exe'
     if (-not (Test-Path $csc)) { Stop-Build ".NET Framework 4 compiler not found: $csc" }
     & $csc /nologo /optimize+ /platform:x86 /target:exe "/out:$vkExe" $vkSrc
@@ -800,8 +808,13 @@ foreach ($page in Get-ChildItem -LiteralPath (Join-Path $Root 'docs\manual') -Fi
 # BF1942 Options is published self-contained (.NET and the Windows App SDK inside its folder) and trimmed.
 # options.json tells it what this installer was built with; cover.bmp is the welcome-page art, if any.
 Write-Step 'BF1942 Options (WinUI app, published with the .NET 10 SDK)'
-if (-not (Get-Command dotnet.exe -ErrorAction SilentlyContinue) -or
-    -not (@(& dotnet.exe --list-sdks 2>$null) | Where-Object { $_ -like '10.*' })) {
+$sdks = @()
+if (Get-Command dotnet.exe -ErrorAction SilentlyContinue) {
+    # Windows PowerShell 5.1 turns anything dotnet writes to stderr into a stopping error here
+    $eap = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    try { $sdks = @(& dotnet.exe --list-sdks 2>$null) } finally { $ErrorActionPreference = $eap }
+}
+if (-not ($sdks | Where-Object { $_ -like '10.*' })) {
     Stop-Build ".NET SDK 10 was not found - it is needed to build BF1942 Options. Install it with:`n         winget install --id Microsoft.DotNet.SDK.10 --exact"
 }
 # The app's source is a git submodule (BF1942-Installer-Options); a clone without --recurse-submodules leaves
@@ -828,7 +841,7 @@ if ($code -ne 0 -or -not (Test-Path -LiteralPath (Join-Path $OptionsDir 'BF1942 
     Stop-Build "BF1942 Options could not be built (dotnet publish exit code $code). See the messages above."
 }
 $optionsSettings = [ordered]@{
-    stateKey       = [string](Get-Setting 'registryStateKey' 'SOFTWARE\BF1942 Installer')
+    stateKey       = ConvertTo-IssText (Get-Setting 'registryStateKey' 'SOFTWARE\BF1942 Installer')
     generateSerial = [bool](Get-Setting 'generateSerial' $true)
     serverShortcut = $(if ($serverAddress) { $serverName } else { '' })
     serverAddress  = $serverAddress
