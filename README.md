@@ -205,7 +205,7 @@ Two Microsoft runtimes are deliberately **not** pinned, so that every build ship
 | Id | Component | Version | Author |
 |---|---|---|---|
 | `bobsiren` | Battle of Britain - disable siren: the Battle of Britain map without the air raid siren. Included in `components/bobsiren` | | Nicole @ MoonGamers |
-| `borderless1942` | [Borderless1942](https://github.com/AnomalousNicole/Borderless1942) | 1.3.1 | Turnerj (original), LANCommander, Nicole |
+| `borderless1942` | [Borderless1942](https://github.com/AnomalousNicole/Borderless1942) | 1.3.3 | Turnerj (original), LANCommander, Nicole |
 | `datafield42` | [DataField42](https://github.com/Ahrkylien/BF1942-DataField42) | v2.1.0 | Ahrkylien |
 | `richpresence` | [Battlefield Rich Presence](https://github.com/community-network/Battlefield-rich-presence) | v1.6.0 | Gametools Network |
 | `dotnet8` | .NET 8 Desktop Runtime (x64), needed by Rich Presence | latest 8.0.x (resolved at build time) | Microsoft |
