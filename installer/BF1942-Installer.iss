@@ -187,6 +187,8 @@ Name: "borderlessicon"; Description: "Create a desktop shortcut for Borderless19
 ; Ticked by default; untick it for no desktop shortcut (the Start menu one is always there)
 Name: "optionsicon"; Description: "Create a desktop shortcut to Battlefield 1942 Options, the app that turns the fixes and extras on or off after install"; GroupDescription: "Shortcuts:"
 Name: "skipintro"; Description: "Skip the intro videos (adds +restart 1 to the shortcut)"; GroupDescription: "Game options:"
+; Asks for the name on the next page, creates a profile with it and makes it the one the game starts with
+Name: "playername"; Description: "Set your player name (creates a game profile with your name)"; GroupDescription: "Game options:"; Flags: unchecked
 
 [Files]
 ; Helper used to decide between DXVK and dgVoodoo2 (Setup runs it from {tmp}; BF1942 Options' copy is installed below)
@@ -415,6 +417,8 @@ Type: files; Name: "{app}\d3d9.dll"; Check: not UseDXVK
 Type: filesandordirs; Name: "{app}"; Check: FolderIsGameFolder
 ; BF1942 Options creates this shortcut when Borderless1942 is turned on after install
 Type: files; Name: "{autodesktop}\Battlefield 1942 (Borderless).lnk"
+; The profile Setup created for the player name (only one it created: a profile that was there before is the player's)
+Type: filesandordirs; Name: "{app}\Mods\bf1942\Settings\Profiles\{code:PlayerProfileDir}"; Check: PlayerProfileIsNew
 
 [Code]
 const
@@ -1150,6 +1154,201 @@ begin
   end;
 end;
 
+{ ---------- Player name ---------- }
+
+{ "Set your player name": the name goes in a copy of the profile the game starts with, in Settings\Profiles\<name>,
+  and the game is switched to it. The game names a profile after its folder and runs its files with
+  "run Profiles/<name>/...", without quotes, so the folder name has no spaces or characters Windows doesn't allow. }
+const
+  MaxPlayerName = 32;
+
+var
+  NamePage: TInputQueryWizardPage;
+  NameFor: String;   { the folder the player name box was last filled in for }
+  ProfileChecked, ProfileIsNew: Boolean;
+
+function SettingsDir(const GameDir: String): String;
+begin
+  Result := AddBackslash(GameDir) + 'Mods\bf1942\Settings\';
+end;
+
+{ The value after Command on its first line in FileName, without quotes ('' if there is none) }
+function ConValue(const FileName, Command: String): String;
+var
+  Lines: TArrayOfString;
+  I: Integer;
+  S: String;
+begin
+  Result := '';
+  if not LoadStringsFromFile(FileName, Lines) then Exit;
+  for I := 0 to GetArrayLength(Lines) - 1 do begin
+    S := Trim(Lines[I]);
+    if Pos(Lowercase(Command) + ' ', Lowercase(S)) = 1 then begin
+      Result := Trim(Copy(S, Length(Command) + 2, MaxInt));
+      StringChangeEx(Result, '"', '', True);
+      Exit;
+    end;
+  end;
+end;
+
+{ The profile the game starts with (Settings\Profile.con), or Custom, the one the game folder comes with }
+function ActiveProfile(const GameDir: String): String;
+begin
+  Result := ConValue(SettingsDir(GameDir) + 'Profile.con', 'game.setProfile');
+  if (Result = '') or not DirExists(SettingsDir(GameDir) + 'Profiles\' + Result) then Result := 'Custom';
+end;
+
+function PlayerName: String;
+begin
+  Result := Trim(NamePage.Values[0]);
+end;
+
+{ The profile folder for a player name, e.g. "[MG] Nicole" -> "[MG]_Nicole" }
+function ProfileFolderName(const Name: String): String;
+var
+  I: Integer;
+  U: String;
+begin
+  Result := Trim(Name);
+  for I := 1 to Length(Result) do
+    if Pos(Result[I], ' \/:*?"<>|') > 0 then Result[I] := '_';
+  { Windows drops a trailing dot, and doesn't allow device names }
+  if Copy(Result, Length(Result), 1) = '.' then Result[Length(Result)] := '_';
+  U := Uppercase(Result);
+  if (U = 'CON') or (U = 'PRN') or (U = 'AUX') or (U = 'NUL') or
+     ((Length(U) = 4) and ((Copy(U, 1, 3) = 'COM') or (Copy(U, 1, 3) = 'LPT')) and (U[4] >= '1') and (U[4] <= '9')) then
+    Result := Result + '_';
+end;
+
+function PlayerProfileDir(Param: String): String;
+begin
+  Result := ProfileFolderName(PlayerName);
+end;
+
+{ '' when the name can be used }
+function PlayerNameError(const Name: String): String;
+var
+  I: Integer;
+begin
+  Result := '';
+  if Name = '' then
+    Result := 'Type the player name you want to use in the game.'
+  else if Length(Name) > MaxPlayerName then
+    Result := Format('The player name can have up to %d characters.', [MaxPlayerName])
+  else if Pos('"', Name) > 0 then
+    Result := 'The player name can''t contain a double quote (").'
+  else
+    for I := 1 to Length(Name) do
+      if (Ord(Name[I]) < 32) or (Ord(Name[I]) > 126) then begin
+        Result := 'The player name can only use English letters, numbers, spaces and the symbols on the keyboard ' +
+                  '(the game''s settings files don''t keep other characters).';
+        Exit;
+      end;
+end;
+
+function SetPlayerNameNow: Boolean;
+begin
+  Result := WizardIsTaskSelected('playername') and (PlayerNameError(PlayerName) = '');
+end;
+
+{ Whether the profile for the player name is new: the uninstaller removes only a profile Setup created. Decided
+  before any file is copied (ssInstall), as [UninstallDelete] is set up during the install }
+function PlayerProfileIsNew: Boolean;
+begin
+  if not ProfileChecked then begin
+    ProfileChecked := True;
+    ProfileIsNew := SetPlayerNameNow and
+      not DirExists(SettingsDir(ExpandConstant('{app}')) + 'Profiles\' + PlayerProfileDir(''));
+  end;
+  Result := ProfileIsNew;
+end;
+
+{ The name box starts with the name the game folder has now, once per folder (like SelectFromGameFolder) }
+procedure FillPlayerName;
+var
+  Name: String;
+begin
+  if PathSame(NameFor, WizardDirValue) then Exit;
+  NameFor := WizardDirValue;
+  if ExpandConstant('{param:PLAYERNAME|}') <> '' then Exit;
+  Name := ConValue(SettingsDir(WizardDirValue) + 'Profiles\' + ActiveProfile(WizardDirValue) + '\GeneralOptions.con',
+                   'game.setPlayerName');
+  if CompareText(Name, 'Player') = 0 then Name := '';
+  NamePage.Values[0] := Name;
+end;
+
+procedure CopyDir(const Source, Dest: String);
+var
+  FR: TFindRec;
+begin
+  ForceDirectories(Dest);
+  if FindFirst(Source + '\*', FR) then
+    try
+      repeat
+        if (FR.Name <> '.') and (FR.Name <> '..') then begin
+          if FR.Attributes and FILE_ATTRIBUTE_DIRECTORY <> 0 then
+            CopyDir(Source + '\' + FR.Name, Dest + '\' + FR.Name)
+          else if not FileCopy(Source + '\' + FR.Name, Dest + '\' + FR.Name, False) then
+            Log('Could not copy ' + Source + '\' + FR.Name);
+        end;
+      until not FindNext(FR);
+    finally
+      FindClose(FR);
+    end;
+end;
+
+{ Points the .con files in Dir that run a profile's files (Profile.con, Video.con, ...) at another profile }
+procedure SwitchProfileInDir(const Dir, OldProfile, NewProfile: String);
+var
+  FR: TFindRec;
+  Raw: AnsiString;
+  S, Before: String;
+begin
+  if FindFirst(Dir + '*.con', FR) then
+    try
+      repeat
+        if (FR.Attributes and FILE_ATTRIBUTE_DIRECTORY = 0) and LoadStringFromFile(Dir + FR.Name, Raw) then begin
+          S := String(Raw);
+          Before := S;
+          StringChangeEx(S, 'Profiles/' + OldProfile + '/', 'Profiles/' + NewProfile + '/', True);
+          StringChangeEx(S, 'rem ** ' + OldProfile + ' **', 'rem ** ' + NewProfile + ' **', True);
+          if S <> Before then SaveStringToFile(Dir + FR.Name, AnsiString(S), False);
+        end;
+      until not FindNext(FR);
+    finally
+      FindClose(FR);
+    end;
+  if FileExists(Dir + 'Profile.con') then
+    SetConLine(Dir + 'Profile.con', 'game.setProfile', 'game.setProfile "' + NewProfile + '"');
+end;
+
+{ After the files are installed: copies the profile the game starts with to Profiles\<name> (a profile with that
+  name that is already there is kept as it is), sets the player name in it and makes it the one the game starts with }
+procedure ApplyPlayerName;
+var
+  Game, Settings, OldProfile, NewProfile, Options: String;
+begin
+  if not SetPlayerNameNow then Exit;
+  Game := ExpandConstant('{app}');
+  Settings := SettingsDir(Game);
+  OldProfile := ActiveProfile(Game);
+  NewProfile := PlayerProfileDir('');
+  if not DirExists(Settings + 'Profiles\' + NewProfile) then begin
+    Log('Creating the profile ' + NewProfile + ' from ' + OldProfile);
+    CopyDir(Settings + 'Profiles\' + OldProfile, Settings + 'Profiles\' + NewProfile);
+  end;
+  Options := Settings + 'Profiles\' + NewProfile + '\GeneralOptions.con';
+  if ConValue(Options, 'game.setPlayerName') <> '' then
+    SetConLine(Options, 'game.setPlayerName', 'game.setPlayerName "' + PlayerName + '"')
+  else
+    SaveStringToFile(Options, AnsiString(#13#10 + 'game.setPlayerName "' + PlayerName + '"' + #13#10), True);
+  if OldProfile <> NewProfile then begin
+    SwitchProfileInDir(Settings, OldProfile, NewProfile);
+    SwitchProfileInDir(Settings + 'Default\', OldProfile, NewProfile);
+  end;
+  Log('Player name ' + PlayerName + ' set in the profile ' + NewProfile + ', which the game now starts with');
+end;
+
 { ---------- Wizard ---------- }
 
 var
@@ -1295,6 +1494,13 @@ var
 begin
   WizardForm.Caption := '{#InstallerTitle}';
   HookInstallDirPage;
+  NamePage := CreateInputQueryPage(wpSelectTasks,
+    'Player name', 'What name do you want to use in Battlefield 1942?',
+    'This is the name other players see in the game. Setup creates a game profile with it and makes it the one ' +
+    'the game starts with. You can still change the name in the game.');
+  NamePage.Add('&Player name:', False);
+  NamePage.Edits[0].MaxLength := MaxPlayerName;
+  NamePage.Values[0] := ExpandConstant('{param:PLAYERNAME|}');
   Page := CreateOutputMsgMemoPage(wpWelcome,
     'Readme & Credits',
     'Please read the following information before continuing.',
@@ -1390,6 +1596,21 @@ begin
     Result := ConfirmSecondInstall;
     if Result then SelectFromGameFolder;
   end;
+  if CurPageID = NamePage.ID then begin
+    Result := PlayerNameError(PlayerName) = '';
+    if not Result then MsgBox(PlayerNameError(PlayerName), mbError, MB_OK);
+  end;
+end;
+
+{ The player name page only with "Set your player name" ticked }
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  Result := (PageID = NamePage.ID) and not WizardIsTaskSelected('playername');
+end;
+
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if CurPageID = NamePage.ID then FillPlayerName;
 end;
 
 function UpdateReadyMemo(Space, NewLine, MemoUserInfoInfo, MemoDirInfo, MemoTypeInfo,
@@ -1402,6 +1623,9 @@ begin
             MemoComponentsInfo + NewLine + NewLine;
   if MemoTasksInfo <> '' then
     Result := Result + MemoTasksInfo + NewLine + NewLine;
+  if SetPlayerNameNow then
+    Result := Result + 'Player name:' + NewLine + Space + PlayerName + ' (game profile ' + PlayerProfileDir('') + ')' +
+              NewLine + NewLine;
   Result := Result + 'Graphics renderer:' + NewLine + Space + GetRendererName('') + NewLine;
   Info := RendererInfo;
   StringChangeEx(Info, #13#10, NewLine + Space, True);
@@ -1526,9 +1750,11 @@ procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssInstall then begin
     FolderIsGameFolder;
+    PlayerProfileIsNew;
     RemoveUnselectedExtras;
   end;
   if CurStep = ssPostInstall then begin
+    ApplyPlayerName;
     ConfigureDisplayMode;
     { Also when Borderless1942.exe is already there (turned on in BF1942 Options, or by an earlier install):
       installing over it puts the game's own VideoDefault.con back, which would make the game fullscreen again }
