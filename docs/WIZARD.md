@@ -10,7 +10,7 @@ The screenshots are from an installer built by this repository's `build.ps1` wit
 | 2 | [Readme & Credits](#2-readme--credits) | - |
 | 3 | [Select Destination Location](#3-select-destination-location) | Install folder |
 | 4 | [Select Components](#4-select-components) | Recommended or Custom, optional components, font size |
-| 5 | [Select Additional Tasks](#5-select-additional-tasks) | Desktop shortcuts, skip intro videos, player name |
+| 5 | [Select Additional Tasks](#5-select-additional-tasks) and Player name | Desktop shortcuts, skip intro videos, player name (the Player name page only when that task is ticked) |
 | 6 | [Ready to Install](#6-ready-to-install) | - (review) |
 | 7 | [Installing](#7-installing) | - |
 | 8 | [Completing](#8-completing) | Launch the game |
@@ -62,7 +62,7 @@ When the game is already installed in another folder, **Next** asks before insta
 
 ![Select Components](images/wizard/07-select-components.jpg)
 
-**Recommended installation** ticks the game, the required fixes and the default font. **Custom installation** (shown) opens up the optional components. The game and the required fixes are always installed and cannot be unticked; the renderer line shows both DXVK and the dgVoodoo2 fallback, because which one is installed is decided by the graphics card, not by the player.
+**Recommended installation** ticks the game, the required fixes and the default font. **Custom installation** (shown) opens up the optional components, which start unticked. The game and the required fixes are always installed and cannot be unticked; the renderer line shows both DXVK and the dgVoodoo2 fallback, because which one is installed is decided by the graphics card, not by the player.
 
 Scrolling down reaches the rest of the extras and the font, where exactly one size can be picked:
 
@@ -74,36 +74,40 @@ Borderless1942, DataField42 and Battlefield Rich Presence are hidden on 32-bit W
 
 ![Select Additional Tasks](images/wizard/09-additional-tasks.jpg)
 
-Desktop shortcuts and the intro videos. The Borderless1942 shortcut only appears when that component is selected, and **Skip the intro videos** adds `+restart 1` to the shortcut rather than deleting anything. Setting `serverAddress` in `config.json` adds one more shortcut here, which joins your server directly. **Create a desktop shortcut to Battlefield 1942 Options** (ticked by default) adds the app that turns the fixes and extras on or off after install; its Start menu shortcut is always created. The screenshot was taken before that option was added.
+Desktop shortcuts and the intro videos. The Borderless1942 shortcut only appears when that component is selected, and **Skip the intro videos** adds `+restart 1` to the shortcut rather than deleting anything. Setting `serverAddress` in `config.json` adds one more shortcut here, which joins your server directly. **Create a desktop shortcut to Battlefield 1942 Options** (ticked by default) adds the app that turns the fixes and extras on or off after install; its Start menu shortcut is always created.
 
-**Set your player name** (unticked by default) adds a *Player name* page right after this one. The name goes in a new game profile named after the player, which the game then starts with; the box starts with the name the game folder has now. Spaces and characters that can't be in a folder name become `_` in the profile's name, not in the player name. The screenshot was taken before this option was added too.
+**Set your player name** (unticked by default) adds a *Player name* page right after this one. The name goes in a new game profile named after the player, which the game then starts with; the box starts with the name the game folder has now. Spaces and characters that can't be in a folder name become `_` in the profile's name, not in the player name. **Next** refuses an empty name, a name with `"` and characters outside printable ASCII, and the box takes at most 32 characters.
+
+![Player name](images/wizard/10-player-name.jpg)
+
+The Ready to Install summary then lists the name and the game profile it goes in.
 
 ## 6. Ready to Install
 
 The last chance to go back. The summary lists the destination, the setup type, every selected component and task - and, below those, what the installer detected about this PC.
 
-![Ready to Install](images/wizard/10-ready-to-install.jpg)
+![Ready to Install](images/wizard/11-ready-to-install.jpg)
 
 <details>
 <summary>The rest of the summary</summary>
 
-![Ready to Install, part 2](images/wizard/11-ready-to-install-2.jpg)
+![Ready to Install, part 2](images/wizard/12-ready-to-install-2.jpg)
 
 The **Graphics renderer** section is the result of `VulkanCheck.exe`: every GPU is listed with its Vulkan version and whether it supports the bundled DXVK, followed by the choice that was made. Under **Windows prerequisites**, each Microsoft dependency is shown as it will be handled, so a player can see in advance that nothing extra will be installed:
 
-![Ready to Install, part 3](images/wizard/12-ready-to-install-3.jpg)
+![Ready to Install, part 3](images/wizard/13-ready-to-install-3.jpg)
 
 </details>
 
 ## 7. Installing
 
-![Installing](images/wizard/13-installing.jpg)
+![Installing](images/wizard/14-installing.jpg)
 
 Extracts the game and the selected components, then runs the prerequisites that were reported as missing.
 
 ## 8. Completing
 
-![Completing](images/wizard/14-finish.jpg)
+![Completing](images/wizard/15-finish.jpg)
 
 Offers to launch the game, which then runs as the player rather than as administrator. The uninstaller is registered with Windows, so the install can be removed from Settings > Apps > Installed apps.
 
@@ -111,6 +115,6 @@ Offers to launch the game, which then runs as the player rather than as administ
 
 ## After install: Battlefield 1942 Options
 
-![Battlefield 1942 Options after a default install: the graphics fix, game fixes, CD key, extras and display options on one page](images/options.png)
+![Battlefield 1942 Options after a default install: the graphics fix, game fixes, player name, CD key, extras and display options on one page](images/options.png)
 
-Setup installs **Battlefield 1942 Options** with a Start menu shortcut, and a desktop shortcut unless the player unticks it on the [Select Additional Tasks](#5-select-additional-tasks) page. It turns the graphics fix, BF42++, 3D audio, the extras and the font size on or off without the setup file, and has **Play** and the troubleshooting guide. The screenshot shows it right after a default install from the stock config; **Join** and **Join our Discord** appear when `serverAddress` and `discordUrl` are set, and your `branding\` art fills the left side. See [Battlefield 1942 Options](../README.md#battlefield-1942-options) in the README for what each option does.
+Setup installs **Battlefield 1942 Options** with a Start menu shortcut, and a desktop shortcut unless the player unticks it on the [Select Additional Tasks](#5-select-additional-tasks) page. It turns the graphics fix, BF42++, 3D audio, the extras and the font size on or off without the setup file, changes the player name like the Player name page does, and has **Play** and the troubleshooting guide. The page shows in two columns, or in three on a screen too short for two, so it opens without scrolling. The screenshot shows it right after an install from the stock config, with a player name set; **Join** and **Join our Discord** appear when `serverAddress` and `discordUrl` are set, and your `branding\` art fills the left side. See [Battlefield 1942 Options](../README.md#battlefield-1942-options) in the README for what each option does.
