@@ -5,7 +5,9 @@
 .DESCRIPTION
     1. Creates config.json from config.example.json on first run and gives it a unique AppId.
     2. Downloads every component listed in components.json from its official source into
-       build\cache and checks its SHA-256.
+       build\cache and checks its SHA-256. BF42++ (the latest release on github.com/sila-skandia/bf42plus)
+       and the .NET 8 Desktop Runtime (the newest 8.0.x patch) are not pinned: they are looked up first and
+       checked against the hash their publisher lists, so every installer ships the latest release.
     3. Stages the components in build\deps (downloads + the tracked files in components\).
     4. Detects the optional files you placed in extras\ (Punkbuster42, fonts, ...).
     5. Compiles the VulkanCheck helper and writes build\generated.iss.
@@ -142,7 +144,7 @@ function Write-Step([string]$Text) {
 function Write-Info([string]$Text) { Write-Host "    $Text"; Write-Log "    $Text" }
 function Write-Good([string]$Text) { Write-Host "    $Text" -ForegroundColor Green; Write-Log "    $Text" }
 function Write-Note([string]$Text) { Write-Host "    WARNING: $Text" -ForegroundColor Yellow; Write-Log "    WARNING: $Text" }
-# "BF42++ v2.0 by Casqade" - the name, version and author from components.json, like the components page
+# "BF42++ v2.0-round-replay by Casqade, sila-skandia" - the name, version and author from components.json, like the components page
 # of the installer. Entries without a version or author (e.g. the fonts) simply leave that part out.
 function Format-Credit($Item) {
     $text = $Item.name
@@ -329,6 +331,48 @@ function Resolve-DotnetRelease($Resolve) {
     }
 }
 
+# Resolves a file of the latest release of a GitHub repository ("githubLatest": "owner/repo", "asset": the file's
+# name in the release), so every build ships that project's newest release - BF42++ is still being worked on.
+# GitHub lists a SHA-256 ("digest") for each release file, so the download is still verified. The release is read
+# once per repository, because a component can take several files from it. Every release reuses the same file
+# names, so the cached copy gets the component's id and the release's tag in its name. Returns $null if the release
+# cannot be read or lacks the file - the build then falls back to the pinned url/sha256.
+function Resolve-GitHubRelease($Resolve, [string]$Id) {
+    $repo = $Resolve.githubLatest
+    $name = $Resolve.asset
+    if ($null -eq $script:GitHubReleases) { $script:GitHubReleases = @{} }
+    if (-not $script:GitHubReleases.ContainsKey($repo)) {
+        $release = $null
+        try {
+            $client = New-Object Net.WebClient
+            $client.Headers['User-Agent'] = 'BF1942-Installer-build'
+            $client.Headers['Accept'] = 'application/vnd.github+json'
+            $release = $client.DownloadString("https://api.github.com/repos/$repo/releases/latest") | ConvertFrom-Json
+        } catch {
+            Write-Note "Could not read the latest release on $repo ($($_.Exception.Message))"
+        }
+        # A failed read is remembered too, so the component's other files fall back without asking again
+        $script:GitHubReleases[$repo] = $release
+    }
+    $release = $script:GitHubReleases[$repo]
+    if (-not $release) { return $null }
+    $tag = "$($release.tag_name)"
+    $asset = @($release.assets | Where-Object { $_.name -eq $name }) | Select-Object -First 1
+    if (-not $tag -or -not $asset -or -not $asset.browser_download_url) {
+        Write-Note "The latest release on $repo ($tag) has no $name - see $($release.html_url)"
+        return $null
+    }
+    $sha256 = $null
+    if ("$($asset.digest)" -match '^sha256:([0-9a-fA-F]{64})$') { $sha256 = $Matches[1].ToUpper() }
+    else { Write-Note "GitHub lists no SHA-256 for $name of $repo $tag, so the download cannot be checked" }
+    return [pscustomobject]@{
+        version  = $tag
+        url      = $asset.browser_download_url
+        fileName = ("$Id-$tag-$name" -replace '[\\/:*?"<>|]', '_')
+        sha256   = $sha256
+    }
+}
+
 # Warns when a GitHub repository has published a newer release than the pinned version. The build still
 # uses the pinned file - moving to a new release stays a deliberate change. A failed check never stops the build.
 function Test-NewerRelease([string]$Name, [string]$Repo, [string]$Pinned) {
@@ -382,6 +426,13 @@ function Get-SevenZip($Manifest) {
     [IO.File]::WriteAllBytes($out, (Get-Download $tool.url $tool.fileName $tool.sha256 $false))
     Write-Good "+ $(Format-Credit $tool) (downloaded to build\tools - not part of your installer)"
     return $out
+}
+
+# Name of a "file" download in build\deps (and so in the installer): its "saveAs", or else its fileName
+function Get-SaveName($Download) {
+    $saveAs = $Download.PSObject.Properties['saveAs']
+    if ($saveAs -and $saveAs.Value) { return $saveAs.Value }
+    return $Download.fileName
 }
 
 function Expand-ZipEntries([byte[]]$Bytes, [string]$Name, $Map, [string]$Dest) {
@@ -599,20 +650,36 @@ foreach ($c in $manifest.components) {
     New-Item -ItemType Directory -Path $dest | Out-Null
     $resolvedNote = ''
     foreach ($d in @($c.downloads)) {
-        # "resolve" downloads are not pinned: their newest release is looked up at build time
+        # "resolve" downloads are not pinned: their newest release is looked up at build time, in Microsoft's .NET
+        # release feed ("channel") or on GitHub ("githubLatest")
         $resolve = $d.PSObject.Properties['resolve']
         if ($resolve -and $resolve.Value) {
-            $latest = Resolve-DotnetRelease $resolve.Value
-            if ($latest) {
-                $d.url      = $latest.url
-                $d.fileName = $latest.fileName
-                $d.sha256   = $null
-                $d | Add-Member -NotePropertyName sha512 -NotePropertyValue $latest.sha512 -Force
-                $c.version  = $latest.version
-                $resolvedNote = "latest $($resolve.Value.channel) release, SHA-512 from Microsoft's release feed"
+            $how = $resolve.Value.PSObject.Properties
+            $latest = $null
+            if ($how['githubLatest'] -and $how['githubLatest'].Value) {
+                $latest = Resolve-GitHubRelease $resolve.Value $c.id
+                if ($latest) {
+                    $d.url      = $latest.url
+                    $d.fileName = $latest.fileName
+                    $d.sha256   = $latest.sha256
+                    $c.version  = $latest.version
+                    $resolvedNote = "latest release on $($resolve.Value.githubLatest), " +
+                        $(if ($latest.sha256) { 'SHA-256 from GitHub' } else { 'not verified - GitHub lists no SHA-256' })
+                }
+            } elseif ($how['channel'] -and $how['channel'].Value) {
+                $latest = Resolve-DotnetRelease $resolve.Value
+                if ($latest) {
+                    $d.url      = $latest.url
+                    $d.fileName = $latest.fileName
+                    $d.sha256   = $null
+                    $d | Add-Member -NotePropertyName sha512 -NotePropertyValue $latest.sha512 -Force
+                    $c.version  = $latest.version
+                    $resolvedNote = "latest $($resolve.Value.channel) release, SHA-512 from Microsoft's release feed"
+                }
             } else {
-                Write-Note "Falling back to the version pinned in components.json ($($c.version))"
+                Stop-Build "The ""resolve"" block of $($c.id) in components.json needs ""channel"" (.NET) or ""githubLatest"" (GitHub)."
             }
+            if (-not $latest) { Write-Note "Falling back to the version pinned in components.json ($($c.version))" }
         }
         $noCache = $false
         $cacheSetting = $d.PSObject.Properties['cache']
@@ -620,7 +687,9 @@ foreach ($c in $manifest.components) {
         $bytes = Get-Download $d.url $d.fileName $d.sha256 $noCache $d.sha512
         switch ($d.type) {
             'file' {
-                $out = Join-Path $dest $d.fileName
+                # "saveAs": the file's name in the game folder, when its cached copy has another one (BF42++'s
+                # dsound.dll is cached with the release's tag in its name, as every release reuses the name)
+                $out = Join-Path $dest (Get-SaveName $d)
                 [IO.File]::WriteAllBytes($out, $bytes)
                 # Unpinned downloads (e.g. the latest VC++ redistributable) must carry a valid signature instead
                 $signer = $d.PSObject.Properties['signedBy']
@@ -772,7 +841,7 @@ foreach ($c in $manifest.components) {
     Add-Define "Ver_$id" $c.version
     Add-Define "Url_$id" $c.homepage
     $first = @($c.downloads) | Where-Object { $_.type -eq 'file' } | Select-Object -First 1
-    if ($first) { Add-Define "File_$id" $first.fileName } else { Add-Define "File_$id" '' }
+    if ($first) { Add-Define "File_$id" (Get-SaveName $first) } else { Add-Define "File_$id" '' }
 }
 foreach ($e in $manifest.extras) { Add-Define "Has_$($e.id)" ([bool]$extrasFound.ContainsKey($e.id)) }
 

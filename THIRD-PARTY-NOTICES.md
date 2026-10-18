@@ -9,7 +9,7 @@ This repository contains **no unmodified game files** The third-party binaries i
 
 | Component | Version | Author | License | Source |
 |---|---|---|---|---|
-| BF42++ | v2.0 | Casqade | No license file published | https://github.com/Casqade/bf42plusplus |
+| BF42++ | latest release (v2.0-round-replay at the time of writing) | Casqade; round replays by sila-skandia | No license file published, in this fork or in Casqade's repository | https://github.com/sila-skandia/bf42plus (fork of Casqade's [bf42++](https://github.com/Casqade/bf42plusplus) that adds round replays) |
 | DXVK | v2.7.1 | Philip Rebohle and contributors | zlib | https://github.com/doitsujin/dxvk |
 | dgVoodoo2 | v2.87.4 | Dege | Freeware; see the readme in the release | https://github.com/dege-diosg/dgVoodoo2 |
 | Borderless1942 | 1.3.3 | Turnerj (original), LANCommander, Nicole | No license file published | https://github.com/AnomalousNicole/Borderless1942 (fork of LANCommander/Borderless1942, originally Turnerj/Borderless1942) |

@@ -3,22 +3,26 @@
     {
       "id": "bf42pp",
       "name": "BF42++",
-      "version": "v2.0",
-      "author": "Casqade",
-      "homepage": "https://github.com/Casqade/bf42plusplus",
+      "version": "v2.0-round-replay",
+      "author": "Casqade, sila-skandia",
+      "homepage": "https://github.com/sila-skandia/bf42plus",
       "required": true,
+      "note": "Not pinned: build.ps1 downloads the latest release of sila-skandia/bf42plus (Casqade's bf42++ with sila-skandia's round replays) and verifies the SHA-256 GitHub lists for each release file. The url/fileName/sha256 below are only the fallback used when GitHub cannot be reached, and \"version\" is then the version shipped. Every release reuses the same file names, so the cached copy (fileName) has the release's tag in its name; saveAs is the name it gets in the game folder.",
       "downloads": [
         {
           "type": "file",
-          "url": "https://github.com/Casqade/bf42plusplus/releases/download/v2.0/dsound.dll",
-          "fileName": "dsound.dll",
-          "sha256": "1416E4556E8B13D351FF0F6C8E267A0ECFA0313EC7CEAB791CFF61304A9C0AE8"
+          "resolve": { "githubLatest": "sila-skandia/bf42plus", "asset": "dsound.dll" },
+          "url": "https://github.com/sila-skandia/bf42plus/releases/download/v2.0-round-replay/dsound.dll",
+          "fileName": "bf42pp-v2.0-round-replay-dsound.dll",
+          "saveAs": "dsound.dll",
+          "sha256": "112716B8B4C65EE6F43CEBE015589E7DD24E4582051C80BBE7AB81348D00876C"
         },
         {
           "type": "zip",
-          "url": "https://github.com/Casqade/bf42plusplus/releases/download/v2.0/bf42%2B%2B.zip",
-          "fileName": "bf42pp-v2.0.zip",
-          "sha256": "E4A7D28C4D06313C6676BD116AC381C6A06B0661D1847B01B49C9F138D312529",
+          "resolve": { "githubLatest": "sila-skandia/bf42plus", "asset": "bf42++.zip" },
+          "url": "https://github.com/sila-skandia/bf42plus/releases/download/v2.0-round-replay/bf42%2B%2B.zip",
+          "fileName": "bf42pp-v2.0-round-replay-bf42++.zip",
+          "sha256": "EE2D702D4337CB6348C86D80D4A32C03D988DAF4D971E991A42ECA4B2B9FE591",
           "extract": { "bf42++BlackScreen.exe": "bf42++BlackScreen.exe" }
         }
       ]

@@ -184,7 +184,9 @@ Eight pages, from Welcome to Finish. **[docs/WIZARD.md](docs/WIZARD.md) walks th
 
 The versions are pinned in [`components.json`](components.json), and each download is checked against its SHA-256.
 
-Two Microsoft runtimes are deliberately **not** pinned, so that every build ships the current security update:
+Three components are deliberately **not** pinned, so that every build ships their current release: BF42++ and two Microsoft runtimes, which get security updates.
+
+- **BF42++** is the latest release of [sila-skandia/bf42plus](https://github.com/sila-skandia/bf42plus/releases): Casqade's BF42++ v2.0 with sila-skandia's round replay recorder. `build.ps1` asks GitHub for the latest release on every build and checks its `dsound.dll` and `bf42++.zip` against the SHA-256 GitHub lists for each file. The release's tag becomes the version on the welcome, components and credits pages. A new release is picked up by the next build, with nothing to change here. The `url`/`sha256` in `components.json` are only the fallback for when GitHub cannot be reached. `bf42++.ini` stays in `components/bf42pp`.
 
 - **Visual C++ Redistributable (x86)** comes from `aka.ms/vs/17/release/vc_redist.x86.exe`, which always serves the latest 14.4x release. It cannot be hash-pinned, so `build.ps1` requires a valid Microsoft Authenticode signature, and the installer reads the version out of the `.exe`.
 - **.NET 8 Desktop Runtime** is looked up in Microsoft's [.NET 8.0 release feed](https://builds.dotnet.microsoft.com/dotnet/release-metadata/8.0/releases.json) at build time: the newest 8.0.x patch is downloaded and verified against the SHA-512 that feed publishes, plus the signature. The channel is fixed at `8.0`, so this never moves to another major version. The `url`/`sha256` in `components.json` are only the fallback for when the feed cannot be reached, and the build warns as .NET 8's end-of-support date (2026-11-10) comes closer.
@@ -193,7 +195,7 @@ Two Microsoft runtimes are deliberately **not** pinned, so that every build ship
 
 | Component | Version | Author | Obtained from |
 |---|---|---|---|
-| [BF42++](https://github.com/Casqade/bf42plusplus) | v2.0 | Casqade | GitHub release |
+| [BF42++](https://github.com/sila-skandia/bf42plus) | latest release (resolved at build time) | Casqade, round replays by sila-skandia | GitHub release, downloaded for every build |
 | [DXVK](https://github.com/doitsujin/dxvk) | v2.7.1 (locked) | Philip Rebohle (doitsujin) | GitHub release |
 | [dgVoodoo2](https://github.com/dege-diosg/dgVoodoo2) | v2.87.4 | Dege | GitHub release |
 | HRTF: [DSOAL](https://github.com/kcat/dsoal) + [OpenAL Soft](https://github.com/kcat/openal-soft) | OpenAL Soft 1.23.1 | Chris Robinson (kcat) | Included in `components/hrtf` (LGPL) |
@@ -342,7 +344,7 @@ Some antivirus products flag `build.ps1` as malware, move it to quarantine, or l
 
 Each of these is harmless on its own, but together they can push the script over a heuristic threshold. Scanners check a file most closely when it is new or has just changed, so a detection often appears right after cloning, pulling an update, or editing the script. Any change to the file can switch the detection on or off.
 
-**What the script does not do.** It only downloads from the official sources listed in `components.json`, checks every download against its pinned SHA-256 (the unpinned Microsoft runtimes against a valid Microsoft signature and, for .NET, the SHA-512 from Microsoft's release feed), and writes only inside the repository (`build\`, `output\`). The one exception is Inno Setup 7, which it installs or updates with winget (`JRSoftware.InnoSetup.7`) unless you pass `-NoInnoUpdate`. It is plain text, so you can read all of it before you run it.
+**What the script does not do.** It only downloads from the official sources listed in `components.json`, checks every download against its pinned SHA-256 (the unpinned Microsoft runtimes against a valid Microsoft signature and, for .NET, the SHA-512 from Microsoft's release feed; BF42++ against the SHA-256 GitHub lists for its latest release), and writes only inside the repository (`build\`, `output\`). The one exception is Inno Setup 7, which it installs or updates with winget (`JRSoftware.InnoSetup.7`) unless you pass `-NoInnoUpdate`. It is plain text, so you can read all of it before you run it.
 
 **If your antivirus flags it:**
 
@@ -375,7 +377,7 @@ The installer you build is a separate file: an unsigned `Setup.exe` can also tri
 1. Edit the component's `version`, `url`, `fileName` and `sha256` in `components.json`.
 2. Run `.\build.ps1 -Quick` to check it, then do a full build and test an install and uninstall.
 
-The Visual C++ redistributable and the .NET 8 Desktop Runtime need no updating - every build already downloads the latest one.
+BF42++, the Visual C++ redistributable and the .NET 8 Desktop Runtime need no updating - every build already downloads the latest one.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for adding new components.
 
@@ -397,6 +399,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for adding new components.
 | Compatibility Profile | `sdbinst` registers or removes `BF1942.sdb` |
 | Skip the intro videos | `+restart 1` on the Battlefield 1942 desktop shortcuts |
 | Resolution | **Use my screen's resolution** rewrites every `Video*.con`, like Setup |
+| BF42++'s own settings | The **BF42++ settings** tab: every setting in `bf42++.ini` (name tags, chat, 3D map markers, controls, performance, screenshots, round replays and more) as a switch, list or text box (the buddy colours as colour swatches, in order, that can be added, moved and taken out). Pointing at a setting's name shows what it does and BF42++'s default. Apply rewrites only the lines of the settings that changed, so comments, buddy colours and the ignore list stay |
 | Player name | **Use this name** works like Setup's *Set your player name*: it copies the profile the game starts with to `Settings\Profiles\<name>` (spaces and characters a folder name can't have become `_`), sets the name in it and makes it the one the game starts with |
 | CD key | **Generate a CD key**, only when no valid key is registered (hidden when `generateSerial` is off). The uninstaller removes a key it generated |
 
@@ -404,7 +407,7 @@ Extras your build left out show as *Not included in this installer*. DirectX, Vi
 
 - **Where things live.** Setup installs the app in `{app}\Options\App` and keeps every fix it can switch, plus the game's original `menu.rfa` and `Battle_of_Britain.rfa`, in `{app}\Options`. Inno Setup stores identical source files once, so the setup file only grows by the app (about 17 MB).
 - **Left side.** The installer's art (or the game's name), then **Play**, **Join** (only with a server shortcut), **Join our Discord** (only with `discordUrl`), **Open game folder** and **Troubleshooting guide**, and the game folder with **Browse...** to pick another Battlefield 1942 folder (one with `BF1942.exe` in it; it is remembered for the next start). The app runs as administrator, so it starts the game, the folder and the guide through Explorer, which runs them as the signed-in user.
-- **Layout.** Two columns of cards that end on the same line. The window opens at the size that shows everything, can be made bigger (the page grows with it) but not smaller, and only on a screen too small for it does the options area turn into one scrolling column; the title, Apply and Close always stay in view.
+- **Layout.** Two tabs, **Fixes and extras** and **BF42++ settings**, each with two columns of cards that end on the same line (the window fits the taller tab). The window opens at the size that shows everything, can be made bigger (the page grows with it) but not smaller, and only on a screen too small for it does the options area turn into one scrolling column; the title, Apply and Close always stay in view.
 - **What is on** is read from the game folder every time: a file counts as on when it is identical to its copy in `Options`.
 - **Admin rights.** The app asks for them (UAC), because it writes to the game folder and to `registryStateKey`, and runs `sdbinst`. It logs every change to `{app}\Options\Options.log`.
 - **Build.** `build.ps1` publishes it with the .NET 10 SDK (32-bit, self-contained and trimmed, so players need no .NET or Windows App SDK) to `build\options`, about 70 MB, and adds `options.json` (`registryStateKey`, `generateSerial`, the server shortcut's name and address, `discordUrl`, and the separate programs the build includes) and `cover.bmp` (your largest `branding\WizardImage*.bmp`).
@@ -424,6 +427,7 @@ Setup installs `manual\Battlefield 1942 Troubleshooting.pdf` in the game folder.
 | `SHA-256 mismatch` | The file on the download server changed. Check the project's release page before updating `components.json`. |
 | `SHA-512 mismatch` | The .NET runtime did not match the hash in Microsoft's release feed. Delete `build\cache` and try again. |
 | `Could not read the .NET 8.0 release feed` | No connection to `builds.dotnet.microsoft.com`. The build continues with the fallback version pinned in `components.json`. |
+| `Could not read the latest release on sila-skandia/bf42plus` | No connection to `api.github.com`, or its hourly limit for requests without a sign-in was reached. The build continues with the BF42++ release pinned in `components.json`. |
 | Antivirus warning about the dgVoodoo2 zip | Some antivirus products flag tools inside the dgVoodoo2 release (a false positive). The build handles that archive in memory and never saves it (`"cache": false`); only `D3D8.dll` is used. |
 | Antivirus quarantines or locks `build.ps1` (for example Bitdefender `Heur.BZC.PZQ.Boxter.*`) | A false positive caused by what the script has to do. See [Antivirus and build.ps1](#antivirus-and-buildps1). |
 | "Access denied" on a file in `build\` | Antivirus is scanning a new file. Run the build again; the script already retries for 30 seconds. |
@@ -474,7 +478,7 @@ BF1942-Installer/
 
 This installer bundles the work of these developers, and all credit goes to them:
 
-- **BF42++**: [Casqade](https://github.com/Casqade/bf42plusplus)
+- **BF42++**: [Casqade](https://github.com/Casqade/bf42plusplus); round replays ([fork](https://github.com/sila-skandia/bf42plus)) by sila-skandia
 - **DXVK**: [Philip Rebohle (doitsujin)](https://github.com/doitsujin/dxvk)
 - **dgVoodoo2**: [Dege](https://github.com/dege-diosg/dgVoodoo2)
 - **DSOAL / OpenAL Soft**: [Chris Robinson (kcat)](https://github.com/kcat)
