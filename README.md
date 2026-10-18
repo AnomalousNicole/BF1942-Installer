@@ -387,7 +387,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for adding new components.
 
 `installer\BF1942Options` is a WinUI 3 app that lets players change their mind after install. Its source is in [BF1942-Installer-Options](https://github.com/AnomalousNicole/BF1942-Installer-Options), which this repository includes as a git submodule. It has one page with every option on it, in a Battlefield 1942 theme (brass and khaki on near-black, with your `branding\` art down the left side when you supply it), and uses the game's `bf1942.ico`, like Setup.
 
-![Battlefield 1942 Options after a default install: the graphics fix, game fixes, CD key, extras and display options on one page](docs/images/options.png)
+![Battlefield 1942 Options after a default install, Fixes and extras tab: the graphics fix, game fixes, player name, CD key, extras and display options](docs/images/options.png)
+
+![The BF42++ settings tab: HUD, chat and console, 3D map markers, controls, performance, and graphics and files, with the explanation of Smoother gameplay showing](docs/images/options-bf42pp.png)
 
 | Can be switched | How |
 |---|---|
@@ -468,7 +470,7 @@ BF1942-Installer/
 └── docs/
     ├── TECHNICAL.md          # How it works, in detail
     ├── WIZARD.md             # The wizard, page by page, with screenshots
-    ├── images/               # The wizard screenshots and one of BF1942 Options
+    ├── images/               # The wizard screenshots and two of BF1942 Options (both tabs)
     └── manual/               # The troubleshooting guide (HTML), printed to PDF for the game's manual folder
 ```
 
