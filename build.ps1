@@ -67,8 +67,10 @@
 .PARAMETER Standalone
     Build BF1942 Options on its own, for Battlefield 1942 folders that this installer did not install, instead
     of the installer: output\BF1942-Options-Standalone.zip has the app and, in its Library folder, every fix and
-    extra the installer would ship. The app copies that library into a game folder when the player sets it up.
-    Needs no game folder, Inno Setup or Microsoft Edge.
+    extra the installer would ship, and in its Programs folder the installers of the runtimes and separate
+    programs. The app copies the library into a game folder when the player sets it up, and installs and removes
+    the programs on its Programs tab. Needs no Inno Setup or Microsoft Edge; a game folder is only used for the
+    original menu.rfa and Battle_of_Britain.rfa.
 
 .PARAMETER NoInnoUpdate
     Do not install or update Inno Setup 7 with winget - use the installed version as it is.
@@ -652,14 +654,10 @@ if ($unknownIds.Count -gt 0) {
                 "       Use a list of ids from components.json: $($knownIds -join ', ')")
 }
 
-# What BF1942 Options switches (-Standalone downloads only these)
-$StandaloneIds = 'bf42pp', 'hrtf', 'dxvk', 'dgvoodoo2', 'borderless1942', 'bobsiren'
 $included = @{}
 foreach ($c in $manifest.components) {
     $dest = Join-Path $DepsDir $c.id
     if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Recurse -Force }
-    # A standalone BF1942 Options only needs what it can switch, not the installers Setup runs
-    if ($Standalone -and $StandaloneIds -notcontains $c.id) { continue }
     if ($exclude -contains $c.id.ToLower()) {
         if ($c.required) { Stop-Build "'$($c.id)' is required and cannot be excluded in config.json." }
         Write-Info "- $(Format-Credit $c): excluded in config.json"
@@ -975,7 +973,8 @@ if ($Standalone) {
     if (Test-Path -LiteralPath $standaloneRoot) { Remove-Item -LiteralPath $standaloneRoot -Recurse -Force }
     New-Item -ItemType Directory -Force -Path $standaloneDir | Out-Null
     Copy-Item -Path (Join-Path $OptionsDir '*') -Destination $standaloneDir -Recurse
-    # A state key of its own, so it never mixes with an installer's on the same PC, and no installer to add programs
+    # A state key of its own, so it never mixes with an installer's on the same PC. It adds the separate programs
+    # itself (its Programs tab), so the note that says to run the installer again goes.
     $optionsSettings.stateKey = 'SOFTWARE\BF1942 Options'
     $optionsSettings.separatePrograms = @()
     [IO.File]::WriteAllText((Join-Path $standaloneDir 'options.json'), ($optionsSettings | ConvertTo-Json), (New-Object Text.UTF8Encoding $false))
@@ -1019,6 +1018,36 @@ if ($Standalone) {
     $libFiles = @(Get-ChildItem -LiteralPath $library -Recurse -File)
     Write-Good ("Library: {0} files ({1:N0} MB): {2}" -f $libFiles.Count, (($libFiles | Measure-Object Length -Sum).Sum / 1MB),
         ((Get-ChildItem -LiteralPath $library -Directory | ForEach-Object { $_.Name }) -join ', '))
+
+    # The installers of the programs and Windows components Setup adds, for the app's Programs tab, which installs
+    # and removes them the way Setup does. They stay next to the app (Set up doesn't copy them to the game folder).
+    # programs.json names each one's file and version; a program the build left out isn't in it.
+    $programsDir = Join-Path $standaloneDir 'Programs'
+    New-Item -ItemType Directory -Force -Path $programsDir | Out-Null
+    $programs = [ordered]@{}
+    foreach ($id in 'vcredist', 'dotnet8', 'datafield42', 'richpresence') {
+        if (-not $included.ContainsKey($id)) { continue }
+        $file = Get-SaveName (@($included[$id].downloads | Where-Object { $_.type -eq 'file' })[0])
+        Copy-Item -LiteralPath (Join-Path $DepsDir "$id\$file") -Destination $programsDir
+        $version = [string]$included[$id].version
+        # The VC++ download is not pinned: its own file says which version it is
+        if ($id -eq 'vcredist') { $version = (Get-Item -LiteralPath (Join-Path $programsDir $file)).VersionInfo.FileVersion }
+        $programs[$id] = [ordered]@{ file = $file; version = $version }
+    }
+    # DXSETUP.exe with its .cab files, as build\deps has them
+    if ($included.ContainsKey('directx')) {
+        Copy-Item -LiteralPath (Join-Path $DepsDir 'directx') -Destination (Join-Path $programsDir 'DirectX') -Recurse
+        $programs['directx'] = [ordered]@{ file = 'DirectX\DXSETUP.exe'; version = [string]$included['directx'].version }
+    }
+    # DirectPlay is a Windows feature: the app turns it on with DISM
+    $programs['directplay'] = [ordered]@{ version = '' }
+    if ($extrasFound.ContainsKey('punkbuster42')) {
+        Copy-Item -LiteralPath (Join-Path $Extras 'Punkbuster42\Punkbuster42.exe') -Destination $programsDir
+        $programs['punkbuster42'] = [ordered]@{ file = 'Punkbuster42.exe'; version = '' }
+    }
+    [IO.File]::WriteAllText((Join-Path $programsDir 'programs.json'), ($programs | ConvertTo-Json), (New-Object Text.UTF8Encoding $false))
+    $programFiles = @(Get-ChildItem -LiteralPath $programsDir -Recurse -File)
+    Write-Good ("Programs: {0} ({1:N0} MB)" -f ($programs.Keys -join ', '), (($programFiles | Measure-Object Length -Sum).Sum / 1MB))
 
     New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
     $zip = Join-Path $outputDir 'BF1942-Options-Standalone.zip'

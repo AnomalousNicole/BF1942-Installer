@@ -419,13 +419,16 @@ Extras your build left out show as *Not included in this installer*. DirectX, Vi
 
 ### Battlefield 1942 Options on its own
 
-`.\build.ps1 -Standalone` builds the app for Battlefield 1942 folders this installer did not install (an old CD install, a copy from a friend, another installer). It downloads only the fixes the app switches, publishes the app and writes `output\BF1942-Options-Standalone.zip` (about 100 MB), with:
+`.\build.ps1 -Standalone` builds the app for Battlefield 1942 folders this installer did not install (an old CD install, a copy from a friend, another installer). It downloads the same components as an installer build, publishes the app and writes `output\BF1942-Options-Standalone.zip` (about 360 MB), with:
 
-- `BF1942 Options.exe` and its files, with an `options.json` that uses a state key of its own (`SOFTWARE\BF1942 Options`, so it never mixes with an installer's) and lists no separate programs. `generateSerial`, the server shortcut and `discordUrl` come from `config.json` as usual.
-- `Library\`: every fix and extra the installer would keep in `{app}\Options` (the same folder names), `VulkanCheck.exe` and `versions.json`. With a game folder (`gameDir` or `-GameDir`) it also has that game's `menu.rfa` and `Battle_of_Britain.rfa` in `Originals`, unless they are the modified ones.
+- `BF1942 Options.exe` and its files, with an `options.json` that uses a state key of its own (`SOFTWARE\BF1942 Options`, so it never mixes with an installer's) and lists no separate programs (the app adds them itself). `generateSerial`, the server shortcut and `discordUrl` come from `config.json` as usual.
+- `Library\`: every fix and extra the installer would keep in `{app}\Options` (the same folder names), `VulkanCheck.exe` and `versions.json`. With a game folder (`gameDir` or `-GameDir`) it also has that game's `menu.rfa` and `Battle_of_Britain.rfa` in `Originals`, unless they are the modified ones. Build releases with a clean game folder, so every folder can switch those extras off.
+- `Programs\`: the installers of the DirectX runtime (`DXSETUP.exe` with its `.cab` files), the Visual C++ Redistributable, the .NET 8 Desktop Runtime, DataField42, Battlefield Rich Presence and Punkbuster42 (the ones the build includes), and `programs.json` with each one's file and version.
 - `Licenses\`: DSOAL's and OpenAL Soft's licences, `LICENSE` and `THIRD-PARTY-NOTICES.md`.
 
 Players extract it anywhere and run `BF1942 Options.exe`. It opens the game folder from the game's registry entry (or the folder it was extracted in), or they pick it with **Browse...**. A folder that has no `Options` library gets a **Set up** button: it copies `Library` to `Options` in the game folder and keeps the folder's own `menu.rfa` and `Battle_of_Britain.rfa` in `Options\Originals`. Nothing in the game changes until **Apply**, and from then on the folder works like one Setup installed. Any file of the folder's own that **Apply** replaces or removes (a `d3d8.dll` or `dsound.dll` from another fix or mod, its `Font.rfa`, ...) is kept in `Options\Backup` first. The troubleshooting guide is written for the installer, so the zip goes without it.
+
+Its **Programs** tab installs and removes everything else Setup's components page has, the way Setup and its uninstaller do: the DirectX runtime, the Visual C++ Redistributable and DirectPlay (install, repair or turn on only: other games use them too, and DirectX June 2010 has no uninstaller), DataField42 (in this game folder; Remove also puts back `BF1942.exe` as it was before DataField42 patched it), Battlefield Rich Presence (with the .NET 8 Desktop Runtime, which stays when it is removed) and PunkBuster (Punkbuster42's own installer; Remove takes out `pb` and BF1942's entry in Apps, and the PunkBuster Services when no other game uses them).
 
 ## Troubleshooting guide
 
