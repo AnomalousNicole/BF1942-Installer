@@ -67,9 +67,9 @@
 .PARAMETER Standalone
     Build BF1942 Options on its own, for Battlefield 1942 folders that this installer did not install, instead
     of the installer: output\BF1942-Options-Standalone.zip has the app and, in its Library folder, every fix and
-    extra the installer would ship, and in its Programs folder the installers of the runtimes and separate
-    programs. The app copies the library into a game folder when the player sets it up, and installs and removes
-    the programs on its Programs tab. Needs no Inno Setup or Microsoft Edge; a game folder is only used for the
+    extra the installer would ship, with the installers of the separate programs in Library\Programs. The app
+    copies the library into a game folder when the player sets it up, and installs and removes the programs on its
+    Programs tab, downloading Microsoft's runtimes from Microsoft when it installs them. Needs no Inno Setup or Microsoft Edge; a game folder is only used for the
     original menu.rfa and Battle_of_Britain.rfa.
 
 .PARAMETER NoInnoUpdate
@@ -1046,31 +1046,7 @@ if ($Standalone) {
     Write-Good ("Library: {0} files ({1:N0} MB): {2}" -f $libFiles.Count, (($libFiles | Measure-Object Length -Sum).Sum / 1MB),
         ((Get-ChildItem -LiteralPath $library -Directory | ForEach-Object { $_.Name }) -join ', '))
 
-    # Microsoft's runtimes, which only a standalone copy brings, for the app's Programs tab, which installs them the
-    # way Setup does. They stay next to the app (Set up doesn't copy them to the game folder). programs.json names
-    # each one's file and version; a runtime the build left out isn't in it.
-    $programsDir = Join-Path $standaloneDir 'Programs'
-    New-Item -ItemType Directory -Force -Path $programsDir | Out-Null
-    $programs = [ordered]@{}
-    foreach ($id in 'vcredist', 'dotnet8') {
-        if (-not $included.ContainsKey($id)) { continue }
-        $file = Get-SaveName (@($included[$id].downloads | Where-Object { $_.type -eq 'file' })[0])
-        Copy-Item -LiteralPath (Join-Path $DepsDir "$id\$file") -Destination $programsDir
-        $version = [string]$included[$id].version
-        # The VC++ download is not pinned: its own file says which version it is
-        if ($id -eq 'vcredist') { $version = (Get-Item -LiteralPath (Join-Path $programsDir $file)).VersionInfo.FileVersion }
-        $programs[$id] = [ordered]@{ file = $file; version = $version }
-    }
-    # DXSETUP.exe with its .cab files, as build\deps has them
-    if ($included.ContainsKey('directx')) {
-        Copy-Item -LiteralPath (Join-Path $DepsDir 'directx') -Destination (Join-Path $programsDir 'DirectX') -Recurse
-        $programs['directx'] = [ordered]@{ file = 'DirectX\DXSETUP.exe'; version = [string]$included['directx'].version }
-    }
-    # DirectPlay is a Windows feature: the app turns it on with DISM
-    $programs['directplay'] = [ordered]@{ version = '' }
-    [IO.File]::WriteAllText((Join-Path $programsDir 'programs.json'), ($programs | ConvertTo-Json), (New-Object Text.UTF8Encoding $false))
-    $programFiles = @(Get-ChildItem -LiteralPath $programsDir -Recurse -File)
-    Write-Good ("Programs: {0} ({1:N0} MB)" -f ($programs.Keys -join ', '), (($programFiles | Measure-Object Length -Sum).Sum / 1MB))
+    # Microsoft's runtimes aren't in the zip: the app downloads them from Microsoft when it installs them
 
     New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
     $zip = Join-Path $outputDir 'BF1942-Options-Standalone.zip'
