@@ -426,9 +426,13 @@ Extras your build left out show as *Not included in this installer*. DirectX, Vi
 - `Programs\`: the installers of the DirectX runtime (`DXSETUP.exe` with its `.cab` files), the Visual C++ Redistributable, the .NET 8 Desktop Runtime, DataField42, Battlefield Rich Presence and Punkbuster42 (the ones the build includes), and `programs.json` with each one's file and version.
 - `Licenses\`: DSOAL's and OpenAL Soft's licences, `LICENSE` and `THIRD-PARTY-NOTICES.md`.
 
+![A standalone copy opened on a game folder without a library: the switches are off and the message at the bottom offers Set up](docs/images/options-setup.png)
+
 Players extract it anywhere and run `BF1942 Options.exe`. It opens the game folder from the game's registry entry (or the folder it was extracted in), or they pick it with **Browse...**. A folder that has no `Options` library gets a **Set up** button: it copies `Library` to `Options` in the game folder and keeps the folder's own `menu.rfa` and `Battle_of_Britain.rfa` in `Options\Originals`. Nothing in the game changes until **Apply**, and from then on the folder works like one Setup installed. Any file of the folder's own that **Apply** replaces or removes (a `d3d8.dll` or `dsound.dll` from another fix or mod, its `Font.rfa`, ...) is kept in `Options\Backup` first. The troubleshooting guide is written for the installer, so the zip goes without it.
 
 Its **Programs** tab installs and removes everything else Setup's components page has, the way Setup and its uninstaller do: the DirectX runtime, the Visual C++ Redistributable and DirectPlay (install, repair or turn on only: other games use them too, and DirectX June 2010 has no uninstaller), DataField42 (in this game folder; Remove also puts back `BF1942.exe` as it was before DataField42 patched it), Battlefield Rich Presence (with the .NET 8 Desktop Runtime, which stays when it is removed) and PunkBuster (Punkbuster42's own installer; Remove takes out `pb` and BF1942's entry in Apps, and the PunkBuster Services when no other game uses them).
+
+![The Programs tab: the DirectX runtime, DirectPlay, Battlefield Rich Presence, the Visual C++ Redistributable, DataField42 and PunkBuster, each with what is installed now and its buttons](docs/images/options-programs.png)
 
 ## Troubleshooting guide
 
