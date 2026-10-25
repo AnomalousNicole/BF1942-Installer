@@ -216,6 +216,9 @@ Source: "{#OptionsDir}\*"; DestDir: "{app}\Options\App"; Flags: ignoreversion re
 Source: "{#BuildDir}\VulkanCheck.exe"; DestDir: "{app}\Options"; Flags: ignoreversion
 ; The versions of the fixes in the library, which BF1942 Options shows (build.ps1 writes it)
 Source: "{#BuildDir}\versions.json"; DestDir: "{app}\Options"; Flags: ignoreversion
+; The separate programs' installers, whatever was picked, so BF1942 Options can add and remove them later
+; (DataField42 and Battlefield Rich Presence only run on 64-bit Windows). Setup runs them from there too
+Source: "{#BuildDir}\programs.json"; DestDir: "{app}\Options\Programs"; Flags: ignoreversion
 Source: "{#Deps}\bf42pp\*"; DestDir: "{app}\Options\BF42++"; Flags: ignoreversion
 Source: "{#Deps}\hrtf\*"; Excludes: "*.txt"; DestDir: "{app}\Options\DSOAL"; Flags: ignoreversion
 Source: "{#Deps}\dxvk\*"; DestDir: "{app}\Options\DXVK"; Flags: ignoreversion
@@ -281,15 +284,15 @@ Source: "{#Deps}\bobsiren\Battle_of_Britain.rfa"; DestDir: "{app}\Mods\bf1942\Ar
 Source: "{#Deps}\borderless1942\Borderless1942.exe"; DestDir: "{app}"; Components: borderless; Flags: ignoreversion
 #endif
 #if Has_datafield42
-Source: "{#Deps}\datafield42\{#File_datafield42}"; DestDir: "{tmp}"; Components: datafield; Flags: deleteafterinstall
+Source: "{#Deps}\datafield42\{#File_datafield42}"; DestDir: "{app}\Options\Programs"; Check: IsWin64; Flags: ignoreversion
 #endif
 #if Has_richpresence
-Source: "{#Deps}\richpresence\{#File_richpresence}"; DestDir: "{tmp}"; Components: richpresence; Flags: deleteafterinstall
+Source: "{#Deps}\richpresence\{#File_richpresence}"; DestDir: "{app}\Options\Programs"; Check: IsWin64; Flags: ignoreversion
 ; .NET 8 Desktop Runtime (x64), needed by Battlefield Rich Presence - only extracted if missing
 Source: "{#Deps}\dotnet8\{#File_dotnet8}"; DestDir: "{tmp}"; Components: richpresence; Check: DotNetDesktop8Needed; Flags: deleteafterinstall
 #endif
 #if Has_punkbuster42
-Source: "{#Extras}\Punkbuster42\Punkbuster42.exe"; DestDir: "{tmp}\pb42"; Components: punkbuster; Flags: deleteafterinstall
+Source: "{#Extras}\Punkbuster42\Punkbuster42.exe"; DestDir: "{app}\Options\Programs"; Flags: ignoreversion
 #endif
 #if Has_compat
 ; PCGamingWiki shim database (EmulateHeap, NoGhost, Win98VersionLie) - registered with sdbinst in [Run]
@@ -382,14 +385,14 @@ Filename: "{sys}\sdbinst.exe"; Parameters: "-q ""{app}\BF1942.sdb"""; StatusMsg:
 ; Also when this build leaves DataField42 out, as the player may have installed it there
 Filename: "{app}\DataField42.exe"; Parameters: "install"; WorkingDir: "{app}"; StatusMsg: "Setting up DataField42 again..."; Check: DataField42PatchNeeded; Flags: waituntilterminated
 #if Has_datafield42
-Filename: "{tmp}\{#File_datafield42}"; Parameters: "/SILENT /SUPPRESSMSGBOXES /NORESTART /SP- /DIR=""{app}"""; StatusMsg: "Installing DataField42..."; Components: datafield; Check: DataField42SetupNeeded; AfterInstall: CloseDataField42; Flags: waituntilterminated
+Filename: "{app}\Options\Programs\{#File_datafield42}"; Parameters: "/SILENT /SUPPRESSMSGBOXES /NORESTART /SP- /DIR=""{app}"""; StatusMsg: "Installing DataField42..."; Components: datafield; Check: DataField42SetupNeeded; AfterInstall: CloseDataField42; Flags: waituntilterminated
 #endif
 #if Has_richpresence
 Filename: "{tmp}\{#File_dotnet8}"; Parameters: "{code:GetDotNetParams}"; StatusMsg: "Installing .NET 8 Desktop Runtime (needed by Battlefield Rich Presence)..."; Components: richpresence; Check: DotNetDesktop8Needed; AfterInstall: DotNetAfterInstall; Flags: waituntilterminated
-Filename: "{sys}\msiexec.exe"; Parameters: "/i ""{tmp}\{#File_richpresence}"" /qn /norestart"; StatusMsg: "Installing Battlefield Rich Presence..."; Components: richpresence; Flags: waituntilterminated
+Filename: "{sys}\msiexec.exe"; Parameters: "/i ""{app}\Options\Programs\{#File_richpresence}"" /qn /norestart"; StatusMsg: "Installing Battlefield Rich Presence..."; Components: richpresence; Flags: waituntilterminated
 #endif
 #if Has_punkbuster42
-Filename: "{tmp}\pb42\Punkbuster42.exe"; WorkingDir: "{app}"; StatusMsg: "Installing PunkBuster - please follow the PunkBuster installer (game folder: {app})..."; Components: punkbuster; Flags: waituntilterminated
+Filename: "{app}\Options\Programs\Punkbuster42.exe"; WorkingDir: "{app}"; StatusMsg: "Installing PunkBuster - please follow the PunkBuster installer (game folder: {app})..."; Components: punkbuster; Flags: waituntilterminated
 ; Punkbuster42 exits while its "PunkBuster Services" window (pbsvc.exe) is still open - wait for the user to finish it
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Start-Sleep -Seconds 2; Get-Process pbsvc -ErrorAction SilentlyContinue | Wait-Process"""; StatusMsg: "Finish the PunkBuster Services window (click Install/Repair, then close it) to continue..."; Components: punkbuster; Flags: runhidden waituntilterminated
 #endif

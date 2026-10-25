@@ -870,6 +870,26 @@ foreach ($v in @(@('VerBF42PP', 'bf42pp'), @('VerDXVK', 'dxvk'), @('VerDgVoodoo2
 }
 [IO.File]::WriteAllText($versionsFile, ($versions | ConvertTo-Json), (New-Object Text.UTF8Encoding $false))
 
+# The installers of the separate programs, which Setup keeps in {app}\Options\Programs (and a standalone BF1942
+# Options in Library\Programs, which Set up copies there), so BF1942 Options can add and remove them in any game
+# folder, also ones not picked during install. programs.json names each one's file and version; a program the build
+# left out isn't in it. Microsoft's runtimes aren't kept: only a standalone copy brings them.
+$libraryPrograms = [ordered]@{}
+foreach ($id in 'datafield42', 'richpresence') {
+    if (-not $included.ContainsKey($id)) { continue }
+    $file = Get-SaveName (@($included[$id].downloads | Where-Object { $_.type -eq 'file' })[0])
+    $libraryPrograms[$id] = [ordered]@{ file = $file; version = [string]$included[$id].version; source = (Join-Path $DepsDir "$id\$file") }
+}
+if ($extrasFound.ContainsKey('punkbuster42')) {
+    $libraryPrograms['punkbuster42'] = [ordered]@{ file = 'Punkbuster42.exe'; version = ''; source = (Join-Path $Extras 'Punkbuster42\Punkbuster42.exe') }
+}
+function Write-ProgramsJson([string]$Path, $Programs) {
+    $json = [ordered]@{}
+    foreach ($id in $Programs.Keys) { $json[$id] = [ordered]@{ file = $Programs[$id].file; version = $Programs[$id].version } }
+    [IO.File]::WriteAllText($Path, ($json | ConvertTo-Json), (New-Object Text.UTF8Encoding $false))
+}
+Write-ProgramsJson (Join-Path $BuildDir 'programs.json') $libraryPrograms
+
 $generated = Join-Path $BuildDir 'generated.iss'
 [IO.File]::WriteAllLines($generated, $lines, (New-Object Text.UTF8Encoding $true))
 Write-Good 'Done'
@@ -1015,17 +1035,24 @@ if ($Standalone) {
     New-Item -ItemType Directory -Force -Path $licenses | Out-Null
     Get-ChildItem -LiteralPath (Join-Path $DepsDir 'hrtf') -Filter '*.txt' -File | Copy-Item -Destination $licenses
     Copy-Item -LiteralPath (Join-Path $Root 'THIRD-PARTY-NOTICES.md'), (Join-Path $Root 'LICENSE') -Destination $licenses
+    # The separate programs' installers in the library, like Setup's {app}\Options\Programs: Set up copies them to
+    # the game folder
+    $libraryProgramsDir = Join-Path $library 'Programs'
+    New-Item -ItemType Directory -Force -Path $libraryProgramsDir | Out-Null
+    foreach ($id in $libraryPrograms.Keys) { Copy-Item -LiteralPath $libraryPrograms[$id].source -Destination $libraryProgramsDir }
+    Write-ProgramsJson (Join-Path $libraryProgramsDir 'programs.json') $libraryPrograms
+
     $libFiles = @(Get-ChildItem -LiteralPath $library -Recurse -File)
     Write-Good ("Library: {0} files ({1:N0} MB): {2}" -f $libFiles.Count, (($libFiles | Measure-Object Length -Sum).Sum / 1MB),
         ((Get-ChildItem -LiteralPath $library -Directory | ForEach-Object { $_.Name }) -join ', '))
 
-    # The installers of the programs and Windows components Setup adds, for the app's Programs tab, which installs
-    # and removes them the way Setup does. They stay next to the app (Set up doesn't copy them to the game folder).
-    # programs.json names each one's file and version; a program the build left out isn't in it.
+    # Microsoft's runtimes, which only a standalone copy brings, for the app's Programs tab, which installs them the
+    # way Setup does. They stay next to the app (Set up doesn't copy them to the game folder). programs.json names
+    # each one's file and version; a runtime the build left out isn't in it.
     $programsDir = Join-Path $standaloneDir 'Programs'
     New-Item -ItemType Directory -Force -Path $programsDir | Out-Null
     $programs = [ordered]@{}
-    foreach ($id in 'vcredist', 'dotnet8', 'datafield42', 'richpresence') {
+    foreach ($id in 'vcredist', 'dotnet8') {
         if (-not $included.ContainsKey($id)) { continue }
         $file = Get-SaveName (@($included[$id].downloads | Where-Object { $_.type -eq 'file' })[0])
         Copy-Item -LiteralPath (Join-Path $DepsDir "$id\$file") -Destination $programsDir
@@ -1041,10 +1068,6 @@ if ($Standalone) {
     }
     # DirectPlay is a Windows feature: the app turns it on with DISM
     $programs['directplay'] = [ordered]@{ version = '' }
-    if ($extrasFound.ContainsKey('punkbuster42')) {
-        Copy-Item -LiteralPath (Join-Path $Extras 'Punkbuster42\Punkbuster42.exe') -Destination $programsDir
-        $programs['punkbuster42'] = [ordered]@{ file = 'Punkbuster42.exe'; version = '' }
-    }
     [IO.File]::WriteAllText((Join-Path $programsDir 'programs.json'), ($programs | ConvertTo-Json), (New-Object Text.UTF8Encoding $false))
     $programFiles = @(Get-ChildItem -LiteralPath $programsDir -Recurse -File)
     Write-Good ("Programs: {0} ({1:N0} MB)" -f ($programs.Keys -join ', '), (($programFiles | Measure-Object Length -Sum).Sum / 1MB))
