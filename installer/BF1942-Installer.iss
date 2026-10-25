@@ -214,6 +214,8 @@ Source: "{#ManualDir}\*.pdf"; DestDir: "{app}\manual"; Flags: ignoreversion
 ; Files that are also installed elsewhere are stored once in the setup file.
 Source: "{#OptionsDir}\*"; DestDir: "{app}\Options\App"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#BuildDir}\VulkanCheck.exe"; DestDir: "{app}\Options"; Flags: ignoreversion
+; The versions of the fixes in the library, which BF1942 Options shows (build.ps1 writes it)
+Source: "{#BuildDir}\versions.json"; DestDir: "{app}\Options"; Flags: ignoreversion
 Source: "{#Deps}\bf42pp\*"; DestDir: "{app}\Options\BF42++"; Flags: ignoreversion
 Source: "{#Deps}\hrtf\*"; Excludes: "*.txt"; DestDir: "{app}\Options\DSOAL"; Flags: ignoreversion
 Source: "{#Deps}\dxvk\*"; DestDir: "{app}\Options\DXVK"; Flags: ignoreversion

@@ -18,6 +18,7 @@
     8. With -Package7z, packs the finished installer into a .7z archive with 7-Zip.
     9. Writes the name, size and SHA-256 of every output file to
        output\<OutputBase>_YYYY-MM-DD_hh.mm.ss_AM.txt (named after the build time, 12-hour clock).
+    With -Standalone, it builds BF1942 Options on its own instead of the installer: output\BF1942-Options-Standalone.zip.
 
 .PARAMETER GameDir
     Folder that contains BF1942.exe. Overrides "gameDir" in config.json.
@@ -63,6 +64,12 @@
     output is <name>.7z.001, <name>.7z.002, ... - one archive that a player extracts in one go, sized
     for what a file host accepts. Implies -Package7z.
 
+.PARAMETER Standalone
+    Build BF1942 Options on its own, for Battlefield 1942 folders that this installer did not install, instead
+    of the installer: output\BF1942-Options-Standalone.zip has the app and, in its Library folder, every fix and
+    extra the installer would ship. The app copies that library into a game folder when the player sets it up.
+    Needs no game folder, Inno Setup or Microsoft Edge.
+
 .PARAMETER NoInnoUpdate
     Do not install or update Inno Setup 7 with winget - use the installed version as it is.
     Without this switch, every build installs Inno Setup 7 if it is missing and updates it to the
@@ -73,6 +80,9 @@
 
 .EXAMPLE
     .\build.ps1 -Quick
+
+.EXAMPLE
+    .\build.ps1 -Standalone
 #>
 [CmdletBinding()]
 param(
@@ -88,7 +98,8 @@ param(
     [int]$PackageLevel = 0,
     [ValidatePattern('^\d+[bkmgBKMG]$')]
     [string]$PackageVolumeSize,
-    [switch]$NoInnoUpdate
+    [switch]$NoInnoUpdate,
+    [switch]$Standalone
 )
 
 $ErrorActionPreference = 'Stop'
@@ -578,7 +589,7 @@ if (-not $GameDir) { $GameDir = Get-Setting 'gameDir' 'game' }
 if (-not [IO.Path]::IsPathRooted($GameDir)) { $GameDir = Join-Path $Root $GameDir }
 $GameDir = [IO.Path]::GetFullPath($GameDir)
 $hasGame = Test-Path -LiteralPath (Join-Path $GameDir 'BF1942.exe')
-if (-not $hasGame -and -not $Quick -and -not $DownloadOnly) {
+if (-not $hasGame -and -not $Quick -and -not $DownloadOnly -and -not $Standalone) {
     Stop-Build "BF1942.exe was not found in '$GameDir'.`n       Copy your Battlefield 1942 folder to 'game\' in the repository, set ""gameDir"" in config.json,`n       or run: .\build.ps1 -GameDir ""C:\path\to\Battlefield 1942"""
 }
 if ($hasGame) {
@@ -593,6 +604,8 @@ if ($hasGame) {
 # ---------------------------------------------------------------------------------------------
 # 2. Inno Setup
 # ---------------------------------------------------------------------------------------------
+# -Standalone builds no installer
+if (-not $Standalone) {
 Write-Step 'Inno Setup'
 $iscc = Find-Iscc
 $before = Get-InnoVersion
@@ -612,6 +625,7 @@ if ($iscc) {
     $innoVersion = Get-InnoVersion
     if ($innoVersion -and $innoVersion -lt $MinInno) { Stop-Build "Inno Setup $innoVersion is too old - version $MinInno or newer is required." }
     Write-Info "Using Inno Setup $(if ($innoVersion) { $innoVersion } else { $InnoMajor }) ($iscc)"
+}
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -638,10 +652,14 @@ if ($unknownIds.Count -gt 0) {
                 "       Use a list of ids from components.json: $($knownIds -join ', ')")
 }
 
+# What BF1942 Options switches (-Standalone downloads only these)
+$StandaloneIds = 'bf42pp', 'hrtf', 'dxvk', 'dgvoodoo2', 'borderless1942', 'bobsiren'
 $included = @{}
 foreach ($c in $manifest.components) {
     $dest = Join-Path $DepsDir $c.id
     if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Recurse -Force }
+    # A standalone BF1942 Options only needs what it can switch, not the installers Setup runs
+    if ($Standalone -and $StandaloneIds -notcontains $c.id) { continue }
     if ($exclude -contains $c.id.ToLower()) {
         if ($c.required) { Stop-Build "'$($c.id)' is required and cannot be excluded in config.json." }
         Write-Info "- $(Format-Credit $c): excluded in config.json"
@@ -845,6 +863,15 @@ foreach ($c in $manifest.components) {
 }
 foreach ($e in $manifest.extras) { Add-Define "Has_$($e.id)" ([bool]$extrasFound.ContainsKey($e.id)) }
 
+# The versions of the fixes, which BF1942 Options shows. Setup puts this file in {app}\Options, the library, and a
+# standalone BF1942 Options (-Standalone) has it in its own library.
+$versionsFile = Join-Path $BuildDir 'versions.json'
+$versions = [ordered]@{}
+foreach ($v in @(@('VerBF42PP', 'bf42pp'), @('VerDXVK', 'dxvk'), @('VerDgVoodoo2', 'dgvoodoo2'))) {
+    $versions[$v[0]] = [string](@($manifest.components | Where-Object { $_.id -eq $v[1] })[0].version)
+}
+[IO.File]::WriteAllText($versionsFile, ($versions | ConvertTo-Json), (New-Object Text.UTF8Encoding $false))
+
 $generated = Join-Path $BuildDir 'generated.iss'
 [IO.File]::WriteAllLines($generated, $lines, (New-Object Text.UTF8Encoding $true))
 Write-Good 'Done'
@@ -861,6 +888,8 @@ if ($DownloadOnly) {
 # Every .html in docs\manual is printed to a PDF of the same name in build\manual, which Setup installs in the
 # game's manual folder. Microsoft Edge comes with every Windows 10 and 11 PC; it runs headless with a profile
 # of its own, so the build works while Edge is open and never touches the user's profile.
+# The guide is written for the installer, so a standalone BF1942 Options goes without it
+if (-not $Standalone) {
 Write-Step 'Troubleshooting guide (docs\manual, printed to PDF with Microsoft Edge)'
 $edge = @(${env:ProgramFiles(x86)}, $env:ProgramFiles, (Join-Path $env:LOCALAPPDATA 'Programs')) | Where-Object { $_ } |
     ForEach-Object { Join-Path $_ 'Microsoft\Edge\Application\msedge.exe' } | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
@@ -873,6 +902,7 @@ foreach ($page in Get-ChildItem -LiteralPath (Join-Path $Root 'docs\manual') -Fi
     Start-Process -FilePath $edge -ArgumentList $edgeArgs -Wait -WindowStyle Hidden
     if (-not (Test-Path -LiteralPath $pdf) -or (Get-Item -LiteralPath $pdf).Length -eq 0) { Stop-Build "Edge did not print $($page.Name) to PDF." }
     Write-Good ("{0} ({1:N0} KB)" -f [IO.Path]::GetFileName($pdf), ((Get-Item -LiteralPath $pdf).Length / 1KB))
+}
 }
 
 # BF1942 Options is published self-contained (.NET and the Windows App SDK inside its folder) and trimmed.
@@ -930,6 +960,81 @@ $optionsSettings = [ordered]@{
 if ($images.Count) { Copy-Item -LiteralPath $images[-1] -Destination (Join-Path $OptionsDir 'cover.bmp') }
 $optionsFiles = @(Get-ChildItem -LiteralPath $OptionsDir -Recurse -File)
 Write-Good ("BF1942 Options.exe and {0} supporting files ({1:N0} MB)" -f ($optionsFiles.Count - 1), (($optionsFiles | Measure-Object Length -Sum).Sum / 1MB))
+
+# ---------------------------------------------------------------------------------------------
+# 6c. BF1942 Options on its own (-Standalone)
+# ---------------------------------------------------------------------------------------------
+# The app with the library Setup keeps in {app}\Options (the same folders as in the .iss) in Library next to the
+# exe. The app copies it to Options in any Battlefield 1942 folder the player sets up. Without a game folder
+# (-GameDir or "gameDir"), the library has no Originals, and the app keeps the set-up folder's own menu.rfa and
+# Battle_of_Britain.rfa then - so the extras that replace them can't be turned off where they already were on.
+if ($Standalone) {
+    Write-Step 'BF1942 Options on its own (-Standalone)'
+    $standaloneRoot = Join-Path $BuildDir 'standalone'
+    $standaloneDir = Join-Path $standaloneRoot 'BF1942 Options'
+    if (Test-Path -LiteralPath $standaloneRoot) { Remove-Item -LiteralPath $standaloneRoot -Recurse -Force }
+    New-Item -ItemType Directory -Force -Path $standaloneDir | Out-Null
+    Copy-Item -Path (Join-Path $OptionsDir '*') -Destination $standaloneDir -Recurse
+    # A state key of its own, so it never mixes with an installer's on the same PC, and no installer to add programs
+    $optionsSettings.stateKey = 'SOFTWARE\BF1942 Options'
+    $optionsSettings.separatePrograms = @()
+    [IO.File]::WriteAllText((Join-Path $standaloneDir 'options.json'), ($optionsSettings | ConvertTo-Json), (New-Object Text.UTF8Encoding $false))
+
+    $library = Join-Path $standaloneDir 'Library'
+    function Add-ToLibrary([string]$Folder, [string[]]$Files) {
+        $dest = Join-Path $library $Folder
+        New-Item -ItemType Directory -Force -Path $dest | Out-Null
+        foreach ($f in $Files) { Copy-Item -LiteralPath $f -Destination $dest }
+    }
+    function Get-DepFiles([string]$Id, [string]$Exclude) {
+        return @(Get-ChildItem -LiteralPath (Join-Path $DepsDir $Id) -File | Where-Object { -not $Exclude -or $_.Name -notlike $Exclude } | ForEach-Object { $_.FullName })
+    }
+    Add-ToLibrary 'BF42++'    (Get-DepFiles 'bf42pp')
+    Add-ToLibrary 'DSOAL'     (Get-DepFiles 'hrtf' '*.txt')
+    Add-ToLibrary 'DXVK'      (Get-DepFiles 'dxvk')
+    Add-ToLibrary 'dgVoodoo2' (Get-DepFiles 'dgvoodoo2')
+    if ($included.ContainsKey('borderless1942')) { Add-ToLibrary 'Borderless1942' (Join-Path $DepsDir 'borderless1942\Borderless1942.exe') }
+    if ($included.ContainsKey('bobsiren')) { Add-ToLibrary 'Battle of Britain disable siren' (Join-Path $DepsDir 'bobsiren\Battle_of_Britain.rfa') }
+    if ($extrasFound.ContainsKey('compat')) { Add-ToLibrary 'Compatibility Profile' (Join-Path $Extras 'CompatProfile\BF1942.sdb') }
+    if ($extrasFound.ContainsKey('hiresui')) { Add-ToLibrary 'Higher resolution UI' (Join-Path $Extras 'HiResUI\menu.rfa') }
+    # The game's own files that those two replace, like Setup's, when the build has the game folder. The app keeps
+    # the game folder's own ones instead when it sets a folder up, unless they are the replacements already.
+    foreach ($o in @(@('hiresui', 'Mods\bf1942\Archives\menu.rfa', (Join-Path $Extras 'HiResUI\menu.rfa')),
+                     @('bobsiren', 'Mods\bf1942\Archives\bf1942\levels\Battle_of_Britain.rfa', (Join-Path $DepsDir 'bobsiren\Battle_of_Britain.rfa')))) {
+        $original = Join-Path $GameDir $o[1]
+        if (-not $hasGame -or -not ($included.ContainsKey($o[0]) -or $extrasFound.ContainsKey($o[0])) -or -not (Test-Path -LiteralPath $original)) { continue }
+        if ((Get-Sha256 $original) -eq (Get-Sha256 $o[2])) { Write-Note "$($o[1]) in the game folder is the modified one - the library has no original of it"; continue }
+        Add-ToLibrary 'Originals' $original
+    }
+    # Fonts\<size>\Font.rfa, like extras\Fonts
+    foreach ($e in @($extrasFound.Values | Where-Object { $_.id -like 'font_*' })) {
+        Add-ToLibrary ('Fonts\' + (Split-Path (Split-Path $e.path) -Leaf)) (Join-Path $Extras $e.path)
+    }
+    Copy-Item -LiteralPath $vkExe, $versionsFile -Destination $library
+    # The licences go with the app (DSOAL's are in the hrtf folder)
+    $licenses = Join-Path $standaloneDir 'Licenses'
+    New-Item -ItemType Directory -Force -Path $licenses | Out-Null
+    Get-ChildItem -LiteralPath (Join-Path $DepsDir 'hrtf') -Filter '*.txt' -File | Copy-Item -Destination $licenses
+    Copy-Item -LiteralPath (Join-Path $Root 'THIRD-PARTY-NOTICES.md'), (Join-Path $Root 'LICENSE') -Destination $licenses
+    $libFiles = @(Get-ChildItem -LiteralPath $library -Recurse -File)
+    Write-Good ("Library: {0} files ({1:N0} MB): {2}" -f $libFiles.Count, (($libFiles | Measure-Object Length -Sum).Sum / 1MB),
+        ((Get-ChildItem -LiteralPath $library -Directory | ForEach-Object { $_.Name }) -join ', '))
+
+    New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
+    $zip = Join-Path $outputDir 'BF1942-Options-Standalone.zip'
+    Remove-WithRetry $zip
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [IO.Compression.ZipFile]::CreateFromDirectory($standaloneDir, $zip, [IO.Compression.CompressionLevel]::Optimal, $true)
+    $zipItem = Get-Item -LiteralPath $zip
+    Complete-Step
+    Write-Host ''
+    Write-Good "Built $zip"
+    Write-Info ("Size:    {0:N0} bytes" -f $zipItem.Length)
+    Write-Info ("SHA-256: {0}" -f (Get-Sha256 $zip))
+    Write-Info 'Players extract it anywhere, run BF1942 Options.exe, pick their game folder with Browse... and click Set up.'
+    Write-Log @('', "Built $zip")
+    exit 0
+}
 
 # ---------------------------------------------------------------------------------------------
 # 7. Compile

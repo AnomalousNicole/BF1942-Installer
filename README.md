@@ -257,6 +257,7 @@ Put `WizardImage100.bmp` (164×314) in `branding\` to replace the default Welcom
 | `-PackageLevel <0-9>` | 7-Zip compression level for the archive: `0` (store, the default), `1`, `3`, `5`, `7` or `9` (ultra). Implies `-Package7z`. |
 | `-PackageVolumeSize <size>` | Split the archive into volumes of that size (`2g`, `700m`, ...), giving `<name>.7z.001`, `.002`, ... Implies `-Package7z`. |
 | `-NoInnoUpdate` | Don't install or update Inno Setup with winget; use the installed Inno Setup 7 as it is (for example when offline) |
+| `-Standalone` | Build [BF1942 Options on its own](#battlefield-1942-options-on-its-own) instead of the installer: `output\BF1942-Options-Standalone.zip`. Needs no game folder, Inno Setup or Edge |
 
 **What gets created** (all git-ignored):
 
@@ -414,6 +415,17 @@ Extras your build left out show as *Not included in this installer*. DirectX, Vi
 - **Admin rights.** The app asks for them (UAC), because it writes to the game folder and to `registryStateKey`, and runs `sdbinst`. It logs every change to `{app}\Options\Options.log`.
 - **Build.** `build.ps1` publishes it with the .NET 10 SDK (32-bit, self-contained and trimmed, so players need no .NET or Windows App SDK) to `build\options`, about 70 MB, and adds `options.json` (`registryStateKey`, `generateSerial`, the server shortcut's name and address, `discordUrl`, and the separate programs the build includes) and `cover.bmp` (your largest `branding\WizardImage*.bmp`).
 - **Running Setup again** puts back every required fix and the extras it was told to install.
+- **Versions.** `build.ps1` writes `versions.json` (the BF42++, DXVK and dgVoodoo2 versions) and Setup puts it in `{app}\Options`; the app shows them next to each fix.
+
+### Battlefield 1942 Options on its own
+
+`.\build.ps1 -Standalone` builds the app for Battlefield 1942 folders this installer did not install (an old CD install, a copy from a friend, another installer). It downloads only the fixes the app switches, publishes the app and writes `output\BF1942-Options-Standalone.zip` (about 100 MB), with:
+
+- `BF1942 Options.exe` and its files, with an `options.json` that uses a state key of its own (`SOFTWARE\BF1942 Options`, so it never mixes with an installer's) and lists no separate programs. `generateSerial`, the server shortcut and `discordUrl` come from `config.json` as usual.
+- `Library\`: every fix and extra the installer would keep in `{app}\Options` (the same folder names), `VulkanCheck.exe` and `versions.json`. With a game folder (`gameDir` or `-GameDir`) it also has that game's `menu.rfa` and `Battle_of_Britain.rfa` in `Originals`, unless they are the modified ones.
+- `Licenses\`: DSOAL's and OpenAL Soft's licences, `LICENSE` and `THIRD-PARTY-NOTICES.md`.
+
+Players extract it anywhere and run `BF1942 Options.exe`. It opens the game folder from the game's registry entry (or the folder it was extracted in), or they pick it with **Browse...**. A folder that has no `Options` library gets a **Set up** button: it copies `Library` to `Options` in the game folder and keeps the folder's own `menu.rfa` and `Battle_of_Britain.rfa` in `Options\Originals` (and its `Font.rfa`, when it is none of the library's fonts). Nothing in the game changes until **Apply**, and from then on the folder works like one Setup installed. The troubleshooting guide is written for the installer, so the zip goes without it.
 
 ## Troubleshooting guide
 
