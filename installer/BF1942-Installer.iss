@@ -1069,7 +1069,7 @@ var
 
 procedure SelectFromGameFolder;
 var
-  Lib, Archives, Value: String;
+  Lib, Archives, Value, KeyName, Cmd: String;
   Found: Boolean;
 begin
   { Once per folder, so going back to the folder page doesn't undo changes made on the components page }
@@ -1146,6 +1146,21 @@ begin
       WizardSelectComponents('compat')
     else
       WizardSelectComponents('!compat');
+#endif
+    { A separate program that is gone (removed in BF1942 Options or in Settings > Apps) starts unticked, so Setup
+      doesn't install it again. One that is there keeps the choice from last time: Punkbuster42's installer opens its
+      own windows }
+#if Has_datafield42
+    if IsWin64 and not PathSame(DataField42Dir, WizardDirValue) then
+      WizardSelectComponents('!datafield');
+#endif
+#if Has_richpresence
+    if IsWin64 and not FindUninstallEntry('battlefield rich presence', KeyName, Cmd) then
+      WizardSelectComponents('!richpresence');
+#endif
+#if Has_punkbuster42
+    if not FileExists(AddBackslash(WizardDirValue) + 'pb\pbcl.dll') then
+      WizardSelectComponents('!punkbuster');
 #endif
     Log('Components as the game folder has them: ' + WizardSelectedComponents(False));
   end;
