@@ -56,6 +56,7 @@ For the people who run your `Setup.exe`:
 - Visual C++ and .NET 8 are repaired if they're registered but their files are missing
 
 **Game setup**
+- **Folder:** the game only goes to an empty folder or a new one. Setup won't install into a folder that already has files in it, such as another copy of the game, and its message names a file it found there. The exception is a copy of the game this Setup installed: running Setup again there updates it.
 - **Serial:** a valid existing serial is kept. Otherwise a random 22-character one is generated. This can be turned off.
 - **Display:** the game is set to the primary monitor's resolution and refresh rate (`game.setGameDisplayMode W H 32 Hz`).
 - **Audio:** HRTF 3D audio through DSOAL + OpenAL Soft, and the BF42++ client improvements.

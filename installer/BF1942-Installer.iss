@@ -73,6 +73,8 @@ AppPublisher={#AppPublisher}
 AppComments=Battlefield 1942, The Road to Rome and Secret Weapons of WWII with community fixes
 DefaultDirName={#DefaultDir}
 DisableDirPage=no
+; The folder must be new or empty (InstallFolderAllowed), so Inno's own "already exists, install anyway?" is not asked
+DirExistsWarning=no
 DisableWelcomePage=no
 DisableProgramGroupPage=yes
 DisableReadyPage=no
@@ -1045,21 +1047,130 @@ begin
   if Result then Log('No font selected - installing the {#DefaultFontDir} font if the game folder has none');
 end;
 
+{ The first thing in a folder (a file, a hidden file or a subfolder), or '' for an empty folder; Hidden says whether
+  it is hidden or a system file, which File Explorer may not show. A folder that can't be listed (no access, a broken
+  link) gives '?', so it never counts as empty. A drive root has no '.' entry, so a failed listing there is empty. }
+function FirstItemIn(const Dir: String; var Hidden: Boolean): String;
+var
+  Rec: TFindRec;
+begin
+  Hidden := False;
+  if not FindFirst(AddBackslash(Dir) + '*', Rec) then begin
+    if PathSame(Dir, ExtractFileDir(Dir)) then Result := '' else Result := '?';
+    Exit;
+  end;
+  Result := '';
+  try
+    repeat
+      if (Rec.Name <> '.') and (Rec.Name <> '..') then begin
+        Result := Rec.Name;
+        Hidden := (Rec.Attributes and (FILE_ATTRIBUTE_HIDDEN or FILE_ATTRIBUTE_SYSTEM)) <> 0;
+      end;
+    until (Result <> '') or not FindNext(Rec);
+  finally
+    FindClose(Rec);
+  end;
+end;
+
+{ True for a folder with nothing in it, not even a hidden file or an empty subfolder, and one that can be listed }
+function FolderIsEmpty(const Dir: String): Boolean;
+var
+  Hidden: Boolean;
+begin
+  Result := FirstItemIn(Dir, Hidden) = '';
+end;
+
+{ True for a folder that holds a copy this Setup installed: the header of its uninstall data (unins000.dat, or
+  unins001.dat and on when another program's uninstaller is there too) names this AppId. Settings > Apps only lists
+  the last install (PrevAppDir); this also finds a copy that lost its entry to a second copy in another folder.
+  The uninstaller deletes this file, so what an uninstall leaves behind doesn't count. }
+function HasOwnInstall(const Dir: String): Boolean;
+var
+  Rec: TFindRec;
+  Data: AnsiString;
+  AppId: String;
+begin
+  Result := False;
+  AppId := '{' + '{#AppIdGuid}' + '}';
+  if FindFirst(AddBackslash(Dir) + 'unins???.dat', Rec) then
+    try
+      repeat
+        { The header starts with a 64-byte ID, then the AppId, padded with zero bytes }
+        if LoadStringFromFile(AddBackslash(Dir) + Rec.Name, Data) then
+          Result := String(Copy(Data, 65, Length(AppId) + 1)) = AppId + #0;
+      until Result or not FindNext(Rec);
+    finally
+      FindClose(Rec);
+    end;
+end;
+
+{ The game only goes to a new or empty folder, so nothing that is already there (another copy of the game, a mod,
+  the player's own files) is overwritten or mixed in with it. The exception is a copy this Setup installed: running
+  Setup again there updates it. The message names something in the folder, as a hidden desktop.ini makes a folder
+  that File Explorer shows as empty count as full. Silent installs stop with the message (unless /SUPPRESSMSGBOXES). }
+function InstallFolderAllowed: Boolean;
+var
+  Dir, Item, Msg: String;
+  Hidden: Boolean;
+begin
+  Result := True;
+  Dir := RemoveBackslashUnlessRoot(WizardDirValue);
+  if DirExists(Dir) then begin
+    Item := FirstItemIn(Dir, Hidden);
+    if Item = '' then Exit;
+    if PathSame(RemoveBackslashUnlessRoot(WizardForm.PrevAppDir), Dir) or HasOwnInstall(Dir) then begin
+      Log('Installing over the earlier install in ' + Dir);
+      Exit;
+    end;
+    if Item = '?' then begin
+      Log('Install folder refused: ' + Dir + ' can''t be listed');
+      Msg := 'Setup can''t read what is in this folder, so it can''t tell whether it is empty:' + #13#10 + Dir;
+    end else begin
+      Log('Install folder refused: ' + Dir + ' is not empty (' + Item + ') and holds no install of this Setup');
+      Msg := 'This folder already has files in it:' + #13#10 + Dir + #13#10#13#10 + 'For example: ' + Item;
+      if Hidden then Msg := Msg + ' (hidden, so File Explorer may not show it)';
+      { A copy of the game: either another installer's (its uninstall data is there), or what an uninstall left,
+        as it leaves files that were in use, such as a running BF1942.exe, and deletes its own uninstall data }
+      if FileExists(AddBackslash(Dir) + 'BF1942.exe') or DirExists(AddBackslash(Dir) + 'Options') then begin
+        if FileExists(AddBackslash(Dir) + 'unins000.dat') then
+          Msg := Msg + #13#10#13#10 + 'Another installer put this copy of the game here. To install over it, ' +
+            'uninstall it in Settings > Apps first.'
+        else
+          Msg := Msg + #13#10#13#10 + 'If it is what was left after uninstalling the game, close the game and ' +
+            'anything else that runs from this folder, delete the folder and try again.';
+      end;
+    end;
+  end else if FileOrDirExists(Dir) then begin
+    Log('Install folder refused: ' + Dir + ' is a file');
+    Msg := 'There is a file with this name, so Setup can''t make the folder:' + #13#10 + Dir;
+  end else
+    Exit;
+  Result := False;
+  SuppressibleMsgBox(Msg + #13#10#13#10 + 'Battlefield 1942 can only be installed to an empty folder or a new one, ' +
+    'so nothing that is already there gets overwritten. Choose another folder.', mbError, MB_OK, IDOK);
+end;
+
 { Already installed in another folder: Setup has one entry in Apps, which the new folder takes over, and the old
-  folder stays behind with its own copy of the game }
+  folder stays behind with its own copy of the game. The new folder can be an older copy this Setup installed
+  (HasOwnInstall), which is then updated. }
 function ConfirmSecondInstall: Boolean;
 var
-  Prev: String;
+  Prev, What: String;
 begin
   Result := True;
   Prev := RemoveBackslashUnlessRoot(WizardForm.PrevAppDir);
   if (Prev = '') or PathSame(Prev, WizardDirValue) or not DirExists(Prev) then Exit;
   Log('Already installed in ' + Prev + ' - now installing to ' + WizardDirValue);
+  if HasOwnInstall(WizardDirValue) then
+    What := 'The folder you chose has another copy, which Setup updates. Settings > Apps then lists that copy: ' +
+      'the one above stays, but it can no longer be uninstalled from Settings > Apps.' + #13#10#13#10 +
+      'Update the copy in the folder you chose anyway?'
+  else
+    What := 'Installing to another folder adds a second copy of the game. The first copy stays, but it can no ' +
+      'longer be uninstalled from Settings > Apps.' + #13#10#13#10 +
+      'To move the game, click No, uninstall it, and run Setup again. Install a second copy anyway?';
   if not WizardSilent then
-    Result := MsgBox('Battlefield 1942 is already installed in:' + #13#10 + Prev + #13#10#13#10 +
-      'Installing to another folder adds a second copy of the game. The first copy stays, but it can no longer ' +
-      'be uninstalled from Settings > Apps.' + #13#10#13#10 +
-      'To move the game, click No, uninstall it, and run Setup again. Install a second copy anyway?',
+    Result := MsgBox('Battlefield 1942 is already installed in:' + #13#10 + Prev + #13#10#13#10 + What,
       mbConfirmation, MB_YESNO) = IDYES;
 end;
 
@@ -1613,7 +1724,8 @@ begin
 #if AppendEAGames
     ApplyInstallDirRule;
 #endif
-    Result := ConfirmSecondInstall;
+    Result := InstallFolderAllowed;
+    if Result then Result := ConfirmSecondInstall;
     if Result then SelectFromGameFolder;
   end;
   if CurPageID = NamePage.ID then begin
@@ -1695,13 +1807,13 @@ var
   FolderChecked, FolderIsGame: Boolean;
 
 { Whether uninstalling may delete the whole install folder: it was new or empty, or it already held the game
-  (an earlier install). A folder with other things in it, and no game, keeps them. Decided before any file is
+  (an earlier install). Setup only installs to such a folder now (InstallFolderAllowed); a folder that held other
+  things and no game, which installers before November 2026 allowed, keeps them. Decided before any file is
   copied (ssInstall), as [UninstallDelete] is set up during the install. Running Setup again over its own install
   keeps what the first install decided (WholeFolder in the state key): BF1942.exe is in the folder by then. }
 function FolderIsGameFolder: Boolean;
 var
   Dir, Value: String;
-  Rec: TFindRec;
 begin
   if not FolderChecked then begin
     FolderChecked := True;
@@ -1711,14 +1823,7 @@ begin
        RegQueryStringValue(HKLM32, StateKey, 'WholeFolder', Value) then
       FolderIsGame := Value = '1'
     else if DirExists(Dir) and not FileExists(AddBackslash(Dir) + 'BF1942.exe') then
-      if FindFirst(AddBackslash(Dir) + '*', Rec) then
-        try
-          repeat
-            if (Rec.Name <> '.') and (Rec.Name <> '..') then FolderIsGame := False;
-          until (not FolderIsGame) or not FindNext(Rec);
-        finally
-          FindClose(Rec);
-        end;
+      FolderIsGame := FolderIsEmpty(Dir);
     if not FolderIsGame then
       Log('The install folder has other files and no game: uninstalling removes only what Setup installed');
   end;

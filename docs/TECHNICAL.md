@@ -128,6 +128,12 @@ When Borderless1942 is chosen, `VideoDefault.con` also gets `renderer.setFullScr
 
 With `appendEAGamesFolder`, the chosen folder is normalised to `…\EA Games\Battlefield 1942`. For example, `D:\Games` becomes `D:\Games\EA Games\Battlefield 1942`. The folder box shows the full path straight away: after **Browse...** (the picked folder is treated as the parent), when the user leaves the box after typing, and again on **Next**. While the user types, a *"Will install to: …"* line under the box shows where the game will really end up, so the rule is never a surprise. A path that already ends in `EA Games` or `Battlefield 1942` is completed rather than doubled. A last folder that starts with `Battlefield 1942` keeps its name, so `C:\EA Games\Battlefield 1942-Test` stays as it is, and `D:\Games\Battlefield 1942-Test` becomes `D:\Games\EA Games\Battlefield 1942-Test`.
 
+Whatever `appendEAGamesFolder` says, the install folder must be empty or not exist yet. On **Next** (after the folder rule), Setup refuses a folder that exists and has anything in it (a file, a hidden file or an empty subfolder) with *"This folder already has files in it"*, and stays on the page. The message names the first item it found, and says when that item is hidden (a `desktop.ini` that File Explorer doesn't show). When the folder has `BF1942.exe` or an `Options` folder, it adds that another installer put that copy there and it should be uninstalled first (when the folder has a `unins000.dat`), or else that what an uninstall left behind (files that were in use, such as a running `BF1942.exe`) can be deleted. A folder Setup can't list (no access, a broken link) is refused too rather than taken for empty, and so is a path that is a file. An empty drive root (possible with `appendEAGamesFolder: false`) counts as empty.
+
+The exception is a copy this Setup installed: the folder of the existing install (`WizardForm.PrevAppDir`), or any folder whose uninstall data (`unins???.dat`) has this AppId in its header, such as an earlier copy that lost its Installed apps entry to a second copy. Running Setup again there updates it. For a copy that Installed apps doesn't list, Setup asks first, because Installed apps then lists that copy instead. The uninstaller deletes its `unins000.dat`, so what an uninstall leaves behind doesn't count.
+
+A silent install to a refused folder (`/DIR=`) shows the message (unless `/SUPPRESSMSGBOXES`), logs it and exits with code 1 without installing. Inno's own *"The folder already exists"* question is off (`DirExistsWarning=no`): an empty folder that exists is used without asking.
+
 ---
 
 ## 4. Install order (`[Run]`)
@@ -153,7 +159,7 @@ Before any file is copied, `[InstallDelete]` removes DXVK's `d3d9.dll` when dgVo
 
 ## 5. Uninstall
 
-It deletes the whole game folder, also files the game made later, when that folder was new, empty or already held the game when Setup ran. A folder that held other files and no game (possible with `appendEAGamesFolder: false`) keeps them: only what Setup installed is removed.
+It deletes the whole game folder, also files the game made later, when that folder was new, empty or already held the game when Setup ran, which is every folder Setup installs to now. A folder that held other files and no game (installers from before November 2026 allowed one) keeps them: only what Setup installed is removed.
 
 | Step | Action |
 |---|---|

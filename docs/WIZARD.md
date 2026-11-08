@@ -56,7 +56,9 @@ The default folder is `defaultInstallDir` in `config.json`. The required disk sp
 
 With `appendEAGamesFolder` on, the installer makes sure the path ends in `EA Games\Battlefield 1942`: whatever the player types or browses to gets it added, unless the path already ends with it. The **Will install to:** line under the box shows the resulting path as it is typed, so the correction is never a surprise.
 
-When the game is already installed in another folder, **Next** asks before installing a second copy: the first copy stays, but it loses its entry in Installed apps.
+The folder must be empty or not exist yet. When it already has files in it, such as another copy of the game, **Next** says so, names a file it found (and whether it is hidden), and stays on the page, so nothing that is already there gets overwritten. A copy of the game this Setup installed is the exception: running Setup again there updates it.
+
+When the game is already installed in another folder, **Next** asks before installing a second copy, or before updating an older copy in the chosen folder: the copy Installed apps lists now stays, but it loses its entry there.
 
 ## 4. Select Components
 
