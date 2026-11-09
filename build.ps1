@@ -5,9 +5,10 @@
 .DESCRIPTION
     1. Creates config.json from config.example.json on first run and gives it a unique AppId.
     2. Downloads every component listed in components.json from its official source into
-       build\cache and checks its SHA-256. BF42++ (the latest release on github.com/sila-skandia/bf42plus)
-       and the .NET 8 Desktop Runtime (the newest 8.0.x patch) are not pinned: they are looked up first and
-       checked against the hash their publisher lists, so every installer ships the latest release.
+       build\cache and checks its SHA-256. BF42++'s dsound.dll (from the latest release on
+       github.com/sila-skandia/bf42plus) and the .NET 8 Desktop Runtime (the newest 8.0.x patch) are not pinned:
+       they are looked up first and checked against the hash their publisher lists, so every installer ships the
+       latest release.
     3. Stages the components in build\deps (downloads + the tracked files in components\).
     4. Detects the optional files you placed in extras\ (Punkbuster42, fonts, ...).
     5. Compiles the VulkanCheck helper and writes build\generated.iss.
@@ -265,7 +266,9 @@ function Read-AllBytes([string]$Path) {
 # Returns the bytes of a download, verified against its SHA-256. Downloads are handled in memory so
 # that an antivirus scan of the cached copy cannot block the build; build\cache is only a speed-up.
 # NoCache: never write the archive to disk (some antivirus products flag files inside the dgVoodoo2 zip).
-function Get-Download([string]$Url, [string]$FileName, [string]$Sha256, [bool]$NoCache, [string]$Sha512) {
+# Optional: a download that fails returns $null with a warning instead of stopping the build (for a file that is only
+# looked at, such as the zip Test-KeptFile compares a kept file with).
+function Get-Download([string]$Url, [string]$FileName, [string]$Sha256, [bool]$NoCache, [string]$Sha512, [switch]$Optional) {
     $path = Join-Path $CacheDir $FileName
     $want = $null
     $algo = 'SHA-256'
@@ -290,6 +293,10 @@ function Get-Download([string]$Url, [string]$FileName, [string]$Sha256, [bool]$N
         if (-not $want -and $cached) {
             Write-Note "Download failed ($($_.Exception.Message)) - using $FileName from build\cache, from an earlier build"
             return , (Read-AllBytes $path)
+        }
+        if ($Optional) {
+            Write-Note "Download failed: $Url ($($_.Exception.Message))"
+            return $null
         }
         Stop-Build "Download failed: $Url`n       $($_.Exception.Message)"
     }
@@ -344,6 +351,98 @@ function Resolve-DotnetRelease($Resolve) {
     }
 }
 
+# The latest release of a GitHub repository, as the GitHub API describes it. It is read once per build and
+# repository; $null (noted once) when it can't be read.
+function Get-GitHubLatest([string]$Repo) {
+    if ($null -eq $script:GitHubReleases) { $script:GitHubReleases = @{} }
+    if (-not $script:GitHubReleases.ContainsKey($Repo)) {
+        $release = $null
+        try {
+            $client = New-Object Net.WebClient
+            $client.Headers['User-Agent'] = 'BF1942-Installer-build'
+            $client.Headers['Accept'] = 'application/vnd.github+json'
+            $release = $client.DownloadString("https://api.github.com/repos/$Repo/releases/latest") | ConvertFrom-Json
+        } catch {
+            Write-Note "Could not read the latest release on $Repo ($($_.Exception.Message))"
+        }
+        # A failed read is remembered too, so the component's other files fall back without asking again
+        $script:GitHubReleases[$Repo] = $release
+    }
+    return $script:GitHubReleases[$Repo]
+}
+
+# A "kept" file of a component: a file in components\<id> that came from an earlier release of the project and is
+# kept because newer releases no longer include it (BF42++'s bf42++BlackScreen.exe). The build stops when it is
+# missing, not a Windows program (for an .exe or .dll) or not the file "sha256" names. With "watch", the latest
+# release on GitHub is checked for the file again ("asset", and "entry" inside it when the asset is a zip): when it
+# has another one the build warns, and still ships the kept one - moving to the new one stays a deliberate change.
+function Test-KeptFile($Component, $Kept) {
+    $rel = "components\$($Component.id)\$($Kept.file)"
+    $path = Join-Path $Root $rel
+    $from = if ($Kept.PSObject.Properties['version'] -and $Kept.version) { " $($Kept.version)" } else { '' }
+    if (-not (Test-Path -LiteralPath $path)) {
+        Stop-Build "$rel is missing.`n       Restore it with git (git checkout -- `"$($rel -replace '\\', '/')`") and build again."
+    }
+    $bytes = Read-AllBytes $path
+    if ($Kept.file -match '\.(exe|dll)$' -and ($bytes.Length -lt 2 -or $bytes[0] -ne 0x4D -or $bytes[1] -ne 0x5A)) {
+        Stop-Build "$rel is not a Windows program file. Restore it with git and build again."
+    }
+    $want = "$($Kept.sha256)".ToUpper()
+    $hash = Get-BytesSha256 $bytes
+    if ($hash -ne $want) {
+        Stop-Build ("$rel is not the one this build ships (SHA-256 $hash, expected $want).`n" +
+                    "       Restore it with git, or, to ship another one on purpose, change its ""kept"" entry of $($Component.id) in components.json.")
+    }
+    $watch = $Kept.PSObject.Properties['watch']
+    if (-not $watch -or -not $watch.Value) { Write-Info "  $($Kept.file)$from, kept in components\$($Component.id)"; return }
+    $w = $watch.Value
+    $release = Get-GitHubLatest $w.githubLatest
+    if (-not $release) { return }
+    $tag = "$($release.tag_name)"
+    $asset = @($release.assets | Where-Object { $_.name -eq $w.asset }) | Select-Object -First 1
+    if (-not $asset) {
+        Write-Info "  $($Kept.file)$from, kept in components\$($Component.id) ($tag on $($w.githubLatest) has no $($w.asset))"
+        return
+    }
+    $sha256 = $null
+    if ("$($asset.digest)" -match '^sha256:([0-9a-fA-F]{64})$') { $sha256 = $Matches[1].ToUpper() }
+    $data = Get-Download $asset.browser_download_url ("$($Component.id)-$tag-$($w.asset)" -replace '[\\/:*?"<>|]', '_') $sha256 $false $null -Optional
+    if (-not $data) {
+        Write-Note "$tag on $($w.githubLatest) has $($w.asset) again, but it could not be downloaded to compare its $($Kept.file) - see $($release.html_url)"
+        return
+    }
+    $entry = $w.PSObject.Properties['entry']
+    if ($entry -and $entry.Value) {
+        $file = $null
+        try {
+            Add-Type -AssemblyName System.IO.Compression
+            $zip = New-Object IO.Compression.ZipArchive (New-Object IO.MemoryStream (, $data))
+            try {
+                $e = $zip.GetEntry($entry.Value)
+                if ($e) {
+                    $out = New-Object IO.MemoryStream
+                    $in = $e.Open()
+                    try { $in.CopyTo($out) } finally { $in.Dispose() }
+                    $file = $out.ToArray()
+                }
+            } finally { $zip.Dispose() }
+        } catch {
+            Write-Note "$($w.asset) of $($w.githubLatest) $tag could not be read ($($_.Exception.Message)) - see $($release.html_url)"
+            return
+        }
+        if (-not $file) {
+            Write-Info "  $($Kept.file)$from, kept in components\$($Component.id) ($($w.asset) of $tag has no $($entry.Value))"
+            return
+        }
+        $data = $file
+    }
+    $new = Get-BytesSha256 $data
+    if ($new -eq $want) { Write-Info "  $($Kept.file)$from, kept in components\$($Component.id), is the same as the one in $($w.asset) of $tag"; return }
+    Write-Note ("$tag on $($w.githubLatest) has another $($Kept.file) in its $($w.asset) (SHA-256 $new). This build still ships " +
+                "the$from one in $rel. To ship the new one, replace that file and change its ""kept"" entry of $($Component.id) in " +
+                "components.json. See $($release.html_url)")
+}
+
 # Resolves a file of the latest release of a GitHub repository ("githubLatest": "owner/repo", "asset": the file's
 # name in the release), so every build ships that project's newest release - BF42++ is still being worked on.
 # GitHub lists a SHA-256 ("digest") for each release file, so the download is still verified. The release is read
@@ -353,21 +452,7 @@ function Resolve-DotnetRelease($Resolve) {
 function Resolve-GitHubRelease($Resolve, [string]$Id) {
     $repo = $Resolve.githubLatest
     $name = $Resolve.asset
-    if ($null -eq $script:GitHubReleases) { $script:GitHubReleases = @{} }
-    if (-not $script:GitHubReleases.ContainsKey($repo)) {
-        $release = $null
-        try {
-            $client = New-Object Net.WebClient
-            $client.Headers['User-Agent'] = 'BF1942-Installer-build'
-            $client.Headers['Accept'] = 'application/vnd.github+json'
-            $release = $client.DownloadString("https://api.github.com/repos/$repo/releases/latest") | ConvertFrom-Json
-        } catch {
-            Write-Note "Could not read the latest release on $repo ($($_.Exception.Message))"
-        }
-        # A failed read is remembered too, so the component's other files fall back without asking again
-        $script:GitHubReleases[$repo] = $release
-    }
-    $release = $script:GitHubReleases[$repo]
+    $release = Get-GitHubLatest $repo
     if (-not $release) { return $null }
     $tag = "$($release.tag_name)"
     $asset = @($release.assets | Where-Object { $_.name -eq $name }) | Select-Object -First 1
@@ -737,6 +822,8 @@ foreach ($c in $manifest.components) {
     # "checkLatest": a GitHub owner/repo whose newest release is compared with the pinned version
     $check = $c.PSObject.Properties['checkLatest']
     if ($check -and $check.Value) { Test-NewerRelease $c.name $check.Value $c.version }
+    # "kept": files in components\<id> from an earlier release, checked against their SHA-256 (see Test-KeptFile)
+    foreach ($k in @($c.PSObject.Properties['kept'] | ForEach-Object { $_.Value })) { if ($k) { Test-KeptFile $c $k } }
 }
 foreach ($c in $included.Values) {
     foreach ($r in @($c.PSObject.Properties['requires'] | ForEach-Object { $_.Value })) {

@@ -7,7 +7,15 @@
       "author": "Casqade, sila-skandia",
       "homepage": "https://github.com/sila-skandia/bf42plus",
       "required": true,
-      "note": "Not pinned: build.ps1 downloads the latest release of sila-skandia/bf42plus (Casqade's bf42++ with sila-skandia's round replays) and verifies the SHA-256 GitHub lists for each release file. The url/fileName/sha256 below are only the fallback used when GitHub cannot be reached, and \"version\" is then the version shipped. Every release reuses the same file names, so the cached copy (fileName) has the release's tag in its name; saveAs is the name it gets in the game folder.",
+      "note": "Not pinned: build.ps1 downloads dsound.dll from the latest release of sila-skandia/bf42plus (Casqade's bf42++ with sila-skandia's round replays) and verifies the SHA-256 GitHub lists for it. The url/fileName/sha256 below are only the fallback used when GitHub cannot be reached, and \"version\" is then the version shipped. Every release reuses the same file name, so the cached copy (fileName) has the release's tag in its name; saveAs is the name it gets in the game folder. bf42++BlackScreen.exe is not downloaded: it came in the releases' bf42++.zip (the bf42++.exe loader's way of starting the game, where it handles map and mod changes), which the releases no longer include. dsound.dll doesn't need it, so the last one, from v2.0-round-replay, is kept in components/bf42pp and installed with every new dsound.dll. \"kept\" names it with its SHA-256: the build stops when the file is missing or another one, and warns when the latest release has bf42++.zip again with another bf42++BlackScreen.exe in it.",
+      "kept": [
+        {
+          "file": "bf42++BlackScreen.exe",
+          "version": "v2.0-round-replay",
+          "sha256": "18551E09288C7A807C6AE550E28EEF887C5A6EB2DFC584B93D8DAE0E66EE4794",
+          "watch": { "githubLatest": "sila-skandia/bf42plus", "asset": "bf42++.zip", "entry": "bf42++BlackScreen.exe" }
+        }
+      ],
       "downloads": [
         {
           "type": "file",
@@ -15,15 +23,7 @@
           "url": "https://github.com/sila-skandia/bf42plus/releases/download/v2.0-round-replay/dsound.dll",
           "fileName": "bf42pp-v2.0-round-replay-dsound.dll",
           "saveAs": "dsound.dll",
-          "sha256": "112716B8B4C65EE6F43CEBE015589E7DD24E4582051C80BBE7AB81348D00876C"
-        },
-        {
-          "type": "zip",
-          "resolve": { "githubLatest": "sila-skandia/bf42plus", "asset": "bf42++.zip" },
-          "url": "https://github.com/sila-skandia/bf42plus/releases/download/v2.0-round-replay/bf42%2B%2B.zip",
-          "fileName": "bf42pp-v2.0-round-replay-bf42++.zip",
-          "sha256": "EE2D702D4337CB6348C86D80D4A32C03D988DAF4D971E991A42ECA4B2B9FE591",
-          "extract": { "bf42++BlackScreen.exe": "bf42++BlackScreen.exe" }
+          "sha256": "3411052BA5E4B361F8AD145E79D818D64585D5019C400E12DD85830235ECB202"
         }
       ]
     },
