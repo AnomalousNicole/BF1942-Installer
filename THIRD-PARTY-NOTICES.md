@@ -25,7 +25,7 @@ This repository contains **no unmodified game files** The third-party binaries i
 
 | Component | Author | License | Source |
 |---|---|---|---|
-| .NET 10 runtime | Microsoft | MIT | https://github.com/dotnet/runtime |
+| .NET 11 runtime | Microsoft | MIT | https://github.com/dotnet/runtime |
 | Windows App SDK (WinUI 3) | Microsoft | MIT | https://github.com/microsoft/WindowsAppSDK |
 | WebView2 loader (`WebView2Loader.dll`, `Microsoft.Web.WebView2.Core.dll`, pulled in by WinUI) | Microsoft | WebView2 SDK license (redistributable) | https://www.nuget.org/packages/Microsoft.Web.WebView2 |
 

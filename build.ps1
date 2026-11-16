@@ -14,7 +14,7 @@
     5. Compiles the VulkanCheck helper and writes build\generated.iss.
     6. Prints the guides in docs\manual (the troubleshooting guide) to PDF in build\manual with Microsoft Edge,
        and publishes BF1942 Options (installer\BF1942Options, a git submodule), the app that turns the fixes on and off after
-       install, to build\options with the .NET 10 SDK.
+       install, to build\options with the .NET 11 SDK.
     7. Runs Inno Setup and writes the installer to output\.
     8. With -Package7z, packs the finished installer into a .7z archive with 7-Zip.
     9. Writes the name, size and SHA-256 of every output file to
@@ -1012,15 +1012,15 @@ foreach ($page in Get-ChildItem -LiteralPath (Join-Path $Root 'docs\manual') -Fi
 
 # BF1942 Options is published self-contained (.NET and the Windows App SDK inside its folder) and trimmed.
 # options.json tells it what this installer was built with; cover.bmp is the welcome-page art, if any.
-Write-Step 'BF1942 Options (WinUI app, published with the .NET 10 SDK)'
+Write-Step 'BF1942 Options (WinUI app, published with the .NET 11 SDK)'
 $sdks = @()
 if (Get-Command dotnet.exe -ErrorAction SilentlyContinue) {
     # Windows PowerShell 5.1 turns anything dotnet writes to stderr into a stopping error here
     $eap = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
     try { $sdks = @(& dotnet.exe --list-sdks 2>$null) } finally { $ErrorActionPreference = $eap }
 }
-if (-not ($sdks | Where-Object { $_ -like '10.*' })) {
-    Stop-Build ".NET SDK 10 was not found - it is needed to build BF1942 Options. Install it with:`n         winget install --id Microsoft.DotNet.SDK.10 --exact"
+if (-not ($sdks | Where-Object { $_ -like '11.*' })) {
+    Stop-Build ".NET SDK 11 was not found - it is needed to build BF1942 Options. Install it with:`n         winget install --id Microsoft.DotNet.SDK.11 --exact"
 }
 # The app's source is a git submodule (BF1942-Installer-Options); a clone without --recurse-submodules leaves
 # the folder empty, so it is fetched here

@@ -97,7 +97,7 @@ Eight pages, from Welcome to Finish. **[docs/WIZARD.md](docs/WIZARD.md) walks th
 |---|---|
 | Windows 10 or 11 | PowerShell 5.1 (built in) or PowerShell 7 |
 | [Git](https://git-scm.com/) | To clone the repository with its BF1942 Options submodule (a ZIP download from GitHub leaves `installer\BF1942Options` empty) |
-| [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) | Builds BF1942 Options. Install it with `winget install --id Microsoft.DotNet.SDK.10 --exact` |
+| [.NET 11 SDK](https://dotnet.microsoft.com/download/dotnet/11.0) | Builds BF1942 Options. Install it with `winget install --id Microsoft.DotNet.SDK.11 --exact` |
 | Microsoft Edge (built into Windows 10 and 11) | Prints the troubleshooting guide to PDF |
 | [Inno Setup 7](https://jrsoftware.org/isinfo.php) | Installed and kept on the latest 7.x release by `build.ps1` (needs [winget](https://learn.microsoft.com/windows/package-manager/winget/), built into Windows 10 and 11) |
 | Battlefield 1942 game folder | With `Mods\xpack1` (The Road to Rome) and `Mods\xpack2` (Secret Weapons of WWII) |
@@ -417,7 +417,7 @@ Extras your build left out show as *Not included in this installer*. DirectX, Vi
 - **Layout.** Three tabs, **Fixes and extras**, **BF42++ settings** and **Programs**, with columns of cards that end on the same line (the window fits the tallest tab). The window opens at the size that shows everything, can be made bigger (the page grows with it) but not smaller, and only on a screen too small for it does the options area turn into one scrolling column; the title, Apply and Close always stay in view.
 - **What is on** is read from the game folder every time: a file counts as on when it is identical to its copy in `Options`.
 - **Admin rights.** The app asks for them (UAC), because it writes to the game folder and to `registryStateKey`, and runs `sdbinst`. It logs every change to `{app}\Options\Options.log`.
-- **Build.** `build.ps1` publishes it with the .NET 10 SDK (32-bit, self-contained and trimmed, so players need no .NET or Windows App SDK) to `build\options`, about 70 MB, and adds `options.json` (`registryStateKey`, `generateSerial`, the server shortcut's name and address, `discordUrl`, and the separate programs the build includes) and `cover.bmp` (your largest `branding\WizardImage*.bmp`).
+- **Build.** `build.ps1` publishes it with the .NET 11 SDK (32-bit, self-contained and trimmed, so players need no .NET or Windows App SDK) to `build\options`, about 70 MB, and adds `options.json` (`registryStateKey`, `generateSerial`, the server shortcut's name and address, `discordUrl`, and the separate programs the build includes) and `cover.bmp` (your largest `branding\WizardImage*.bmp`).
 - **Running Setup again** puts back every required fix and the extras it was told to install.
 - **Versions.** `build.ps1` writes `versions.json` (the BF42++, DXVK and dgVoodoo2 versions) and Setup puts it in `{app}\Options`; the app shows them next to each fix.
 
@@ -460,7 +460,7 @@ Setup installs `manual\Battlefield 1942 Troubleshooting.pdf` in the game folder.
 | Installer over 4 GB | `build.ps1` splits it into `Setup.exe` + `.bin` files automatically. See [Very large installers](#very-large-installers) |
 | Players get the wrong renderer | They can run `Setup.exe /RENDERER=dxvk` or `/RENDERER=dgvoodoo` |
 | Install problems | The setup log is at `%TEMP%\Setup Log YYYY-MM-DD #NNN.txt` |
-| `.NET SDK 10 was not found` | `winget install --id Microsoft.DotNet.SDK.10 --exact` - it builds BF1942 Options |
+| `.NET SDK 11 was not found` | `winget install --id Microsoft.DotNet.SDK.11 --exact` - it builds BF1942 Options |
 | `The BF1942 Options source is missing` | `installer\BF1942Options` is a git submodule. In a clone, run `git submodule update --init`; after a ZIP download, clone the repository with `git clone --recurse-submodules` instead |
 | `Microsoft Edge was not found` / `Edge did not print` | Edge prints the troubleshooting guide to PDF. Install or repair Microsoft Edge, then build again |
 
