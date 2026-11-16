@@ -57,7 +57,7 @@ For the people who run your `Setup.exe`:
 
 **Game setup**
 - **Folder:** the game only goes to an empty folder or a new one. Setup won't install into a folder that already has files in it, such as another copy of the game, and its message names a file it found there. The exception is a copy of the game this Setup installed: running Setup again there updates it.
-- **Serial:** a valid existing serial is kept. Otherwise a random 22-character one is generated. This can be turned off.
+- **Serial:** a valid existing serial is kept, unless it is a public one shared online (BF42++ swaps those for a different key every launch). Otherwise a random 22-character one is generated. This can be turned off.
 - **Display:** the game is set to the primary monitor's resolution and refresh rate (`game.setGameDisplayMode W H 32 Hz`).
 - **Audio:** HRTF 3D audio through DSOAL + OpenAL Soft, and the BF42++ client improvements.
 
@@ -407,7 +407,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for adding new components.
 | Resolution | **Use my screen's resolution** rewrites every `Video*.con`, like Setup |
 | BF42++'s own settings | The **BF42++ settings** tab: every setting in `bf42++.ini` (name tags, chat, 3D map markers, controls, performance, screenshots, round replays and more) as a switch, list or text box (the buddy colours as colour swatches, in order, that can be added, moved and taken out). Pointing at a setting's name shows what it does and BF42++'s default. Apply rewrites only the lines of the settings that changed, so comments, buddy colours and the ignore list stay |
 | Player name | **Use this name** works like Setup's *Set your player name*: it copies the profile the game starts with to `Settings\Profiles\<name>` (spaces and characters a folder name can't have become `_`), sets the name in it and makes it the one the game starts with |
-| CD key | **Generate a CD key**, only when no valid key is registered (hidden when `generateSerial` is off). The uninstaller removes a key it generated |
+| CD key | **Generate a CD key**, only when no valid key, or a public one shared online, is registered (hidden when `generateSerial` is off). Uninstalling leaves the key |
 
 Extras your build left out show as *Not included in this installer*. DirectX, Visual C++, DirectPlay and the game itself always stay installed. DataField42, Battlefield Rich Presence and PunkBuster are separate programs, so they are added and removed on the app's **Programs** tab (or added by running Setup again, Custom, and removed in Settings > Apps). Running Setup again starts with the font and extras (also Borderless1942 and the Compatibility Profile) as they are in the game folder, and with a separate program that is gone unticked (unless `/COMPONENTS` or `/TASKS` is given), keeps dgVoodoo2 if the game runs it, and keeps the player's settings (profile and player name, controls, video, sound) as well as `bf42++.ini`, `alsoft.ini` and the graphics fix's `dxvk.conf` or `dgVoodoo.conf`. Unticking Borderless1942 or the Compatibility Profile there turns it off. It does set the resolution to the screen's and the window mode again, and puts the required fixes, BF42++ and 3D audio, back on. Installing to another folder than the existing install asks first, as the first copy would lose its entry in Installed apps.
 

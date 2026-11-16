@@ -94,11 +94,10 @@ It returns `1` when no device does, which means dgVoodoo2. If the check fails (t
 |---|---|---|
 | `Electronic Arts\EA GAMES\Battlefield 1942\GAMEDIR` = `{app}` | Always | The value, then any empty parent keys |
 | `EA GAMES\Battlefield 1942\GAMEDIR` = `{app}` | `punkbuster` component | The value, then any empty parent keys |
-| `Electronic Arts\EA GAMES\Battlefield 1942\ergc` (default value) = random `[A-Z0-9]{22}` | `generateSerial` is on and no valid serial exists | Only if the installer created it |
+| `Electronic Arts\EA GAMES\Battlefield 1942\ergc` (default value) = random `[A-Z0-9]{22}` | `generateSerial` is on and no valid serial exists. A public key counts as no valid key: 22 characters, a digit first, and an MD5 on BF42++'s list of keys shared online (`publicKeyhashes` in its `src/bf/generic.cpp`). BF42++ never plays with one of those but makes up a different key on every launch, so Setup replaces it with a random one. | Never: every copy of the game shares it, and servers know the player by it |
 | `<registryStateKey>\Renderer`, `DataField42`, `RichPresence`, `PunkBuster` | Always / per component | The whole key |
 | `<registryStateKey>\VerBF42PP`, `VerDXVK`, `VerDgVoodoo2`, `SkipIntro` | Always, read by BF1942 Options | The whole key |
 | `<registryStateKey>\WholeFolder` = `1`/`0` | Always: whether uninstalling deletes the whole folder, kept for when Setup runs again | The whole key |
-| `<registryStateKey>\SerialCreated` = `1` | BF1942 Options generated a CD key | The whole key; the uninstaller then also deletes `ergc` |
 
 ### Display mode
 
@@ -164,7 +163,7 @@ It deletes the whole game folder, also files the game made later, when that fold
 | Step | Action |
 |---|---|
 | Compatibility Profile | `sdbinst -q -u BF1942.sdb`, whenever `BF1942.sdb` is in the game folder (Setup or BF1942 Options may have added it) |
-| CD key | `ergc` is deleted when `SerialCreated` is `1` (BF1942 Options generated it) |
+| CD key | Kept. Copies installed by an older Setup still have `uninsdeletekey` for `ergc` in their uninstall log, so the uninstaller reads it at `usUninstall` and writes it back at `usPostUninstall` if it is gone. A copy whose last Setup is older never gets this uninstaller, so its own still deletes the key; running the new Setup over it first replaces the uninstaller. |
 | Borderless shortcut | Deleted, also when BF1942 Options created it |
 | PunkBuster setup window | Any `pbsvc.exe` still running from `{app}` is closed |
 | Firewall | Every rule whose program is under `{app}\` is removed, such as the auto-created `bf1942` TCP/UDP rules |
