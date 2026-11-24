@@ -187,7 +187,7 @@ The versions are pinned in [`components.json`](components.json), and each downlo
 
 Three components are deliberately **not** pinned, so that every build ships their current release: BF42++ and two Microsoft runtimes, which get security updates.
 
-- **BF42++** is the latest release of [sila-skandia/bf42plus](https://github.com/sila-skandia/bf42plus/releases): Casqade's BF42++ v2.0 with sila-skandia's round replay recorder. `build.ps1` asks GitHub for the latest release on every build and checks its `dsound.dll` against the SHA-256 GitHub lists for it. The release's tag becomes the version on the welcome, components and credits pages. A new release is picked up by the next build, with nothing to change here. The `url`/`sha256` in `components.json` are only the fallback for when GitHub cannot be reached. `bf42++.ini` stays in `components/bf42pp`, and so does `bf42++BlackScreen.exe`: it came in the releases' `bf42++.zip`, BF42++'s other way of starting the game (as [Casqade's README](https://github.com/Casqade/bf42plusplus) explains, `bf42++.exe` starts the game with `bf42++.dll`, and `bf42++BlackScreen.exe` handles map and mod changes). The releases no longer include that zip, and `dsound.dll` doesn't need it to run, so the installer keeps shipping the last one released, from v2.0-round-replay. The `kept` entry of `bf42pp` in `components.json` has its release and SHA-256: the build stops when the file is missing or another one, and warns when the latest release has `bf42++.zip` again with another `bf42++BlackScreen.exe` in it. It still ships the kept one then; to move to the new one, replace the file and change that entry.
+- **BF42++** is the latest release of [Casqade/bf42plusplus](https://github.com/Casqade/bf42plusplus/releases): BF42++ by uuuzbf, Casqade and sila-skandia, with sila-skandia's round replay recorder. `build.ps1` asks GitHub for the latest release on every build and takes its `dsound.dll`, checked against the SHA-256 GitHub lists for it. The release's tag becomes the version on the welcome, components and credits pages. A new release is picked up by the next build, with nothing to change here. The newest `dsound.dll` a build got is stored in `stored/bf42pp` with a `version.txt` (the tag, the repository and the SHA-256); when a build stores a new one it says so, and the two files should be committed. When the latest release can't be used (GitHub can't be reached, the release has no `dsound.dll` or no SHA-256 for it, or the download fails or doesn't match), the build ships the stored copy and warns. Only `dsound.dll` is installed: the releases' `bf42++.zip` is BF42++'s other way of starting the game, with `bf42++.exe` (as [Casqade's README](https://github.com/Casqade/bf42plusplus) explains), and its `bf42++BlackScreen.exe` is only used that way, so Setup removes the copy an earlier install left. `bf42++.ini` stays in `components/bf42pp`.
 
 - **Visual C++ Redistributable (x86)** comes from `aka.ms/vs/17/release/vc_redist.x86.exe`, which always serves the latest 14.4x release. It cannot be hash-pinned, so `build.ps1` requires a valid Microsoft Authenticode signature, and the installer reads the version out of the `.exe`.
 - **.NET 8 Desktop Runtime** is looked up in Microsoft's [.NET 8.0 release feed](https://builds.dotnet.microsoft.com/dotnet/release-metadata/8.0/releases.json) at build time: the newest 8.0.x patch is downloaded and verified against the SHA-512 that feed publishes, plus the signature. The channel is fixed at `8.0`, so this never moves to another major version. The `url`/`sha256` in `components.json` are only the fallback for when the feed cannot be reached, and the build warns as .NET 8's end-of-support date (2026-11-10) comes closer.
@@ -196,7 +196,7 @@ Three components are deliberately **not** pinned, so that every build ships thei
 
 | Component | Version | Author | Obtained from |
 |---|---|---|---|
-| [BF42++](https://github.com/sila-skandia/bf42plus) | latest release (resolved at build time) | Casqade, round replays by sila-skandia | GitHub release, downloaded for every build |
+| [BF42++](https://github.com/Casqade/bf42plusplus) | latest release (resolved at build time) | uuuzbf, Casqade and sila-skandia | GitHub release, downloaded for every build; stored copy in `stored/bf42pp` as fallback |
 | [DXVK](https://github.com/doitsujin/dxvk) | v2.7.1 (locked) | Philip Rebohle (doitsujin) | GitHub release |
 | [dgVoodoo2](https://github.com/dege-diosg/dgVoodoo2) | v2.87.4 | Dege | GitHub release |
 | HRTF: [DSOAL](https://github.com/kcat/dsoal) + [OpenAL Soft](https://github.com/kcat/openal-soft) | OpenAL Soft 1.23.1 | Chris Robinson (kcat) | Included in `components/hrtf` (LGPL) |
@@ -451,7 +451,7 @@ Setup installs `manual\Battlefield 1942 Troubleshooting.pdf` in the game folder.
 | `SHA-256 mismatch` | The file on the download server changed. Check the project's release page before updating `components.json`. |
 | `SHA-512 mismatch` | The .NET runtime did not match the hash in Microsoft's release feed. Delete `build\cache` and try again. |
 | `Could not read the .NET 8.0 release feed` | No connection to `builds.dotnet.microsoft.com`. The build continues with the fallback version pinned in `components.json`. |
-| `Could not read the latest release on sila-skandia/bf42plus` | No connection to `api.github.com`, or its hourly limit for requests without a sign-in was reached. The build continues with the BF42++ release pinned in `components.json`. |
+| `Could not read the latest release on Casqade/bf42plusplus` | No connection to `api.github.com`, or its hourly limit for requests without a sign-in was reached. The build continues with the BF42++ release stored in `stored/bf42pp`. |
 | Antivirus warning about the dgVoodoo2 zip | Some antivirus products flag tools inside the dgVoodoo2 release (a false positive). The build handles that archive in memory and never saves it (`"cache": false`); only `D3D8.dll` is used. |
 | Antivirus quarantines or locks `build.ps1` (for example Bitdefender `Heur.BZC.PZQ.Boxter.*`) | A false positive caused by what the script has to do. See [Antivirus and build.ps1](#antivirus-and-buildps1). |
 | "Access denied" on a file in `build\` | Antivirus is scanning a new file. Run the build again; the script already retries for 30 seconds. |
@@ -487,6 +487,7 @@ BF1942-Installer/
 │   ├── VulkanCheck.cs        # DXVK capability check (compiled by build.ps1)
 │   └── BF1942Options/        # Battlefield 1942 Options (git submodule: BF1942-Installer-Options)
 ├── components/               # Config files (+ LGPL audio libraries) copied into the install
+├── stored/                   # The newest BF42++ dsound.dll a build got, used when GitHub can't give the latest
 ├── extras/                   # Optional files with no official download
 ├── branding/                 # Your optional artwork (git-ignored)
 └── docs/
@@ -502,7 +503,7 @@ BF1942-Installer/
 
 This installer bundles the work of these developers, and all credit goes to them:
 
-- **BF42++**: [Casqade](https://github.com/Casqade/bf42plusplus); round replays ([fork](https://github.com/sila-skandia/bf42plus)) by sila-skandia
+- **BF42++**: uuuzbf (the original [bf42plus](https://github.com/uuuzbf/bf42plus)), [Casqade](https://github.com/Casqade/bf42plusplus), and sila-skandia (round replays)
 - **DXVK**: [Philip Rebohle (doitsujin)](https://github.com/doitsujin/dxvk)
 - **dgVoodoo2**: [Dege](https://github.com/dege-diosg/dgVoodoo2)
 - **DSOAL / OpenAL Soft**: [Chris Robinson (kcat)](https://github.com/kcat)

@@ -43,7 +43,7 @@
 #endif
 
 ; ---- Welcome page list of included community tools ----
-#define WelcomeTools "%n  • BF42++ " + Ver_bf42pp + " by Casqade and sila-skandia%n  • DXVK " + Ver_dxvk + " by Philip Rebohle (doitsujin)%n  • dgVoodoo2 " + Ver_dgvoodoo2 + " by Dege (dege-diosg)%n  • DSOAL + OpenAL Soft by Chris Robinson (kcat)"
+#define WelcomeTools "%n  • BF42++ " + Ver_bf42pp + " by uuuzbf, Casqade and sila-skandia%n  • DXVK " + Ver_dxvk + " by Philip Rebohle (doitsujin)%n  • dgVoodoo2 " + Ver_dgvoodoo2 + " by Dege (dege-diosg)%n  • DSOAL + OpenAL Soft by Chris Robinson (kcat)"
 #if Has_borderless1942
   #define WelcomeTools WelcomeTools + "%n  • Borderless1942 " + Ver_borderless1942 + " by Turnerj, LANCommander and Nicole"
 #endif
@@ -128,7 +128,7 @@ Name: "custom"; Description: "Custom installation"; Flags: iscustom
 [Components]
 Name: "game"; Description: "Battlefield 1942 + The Road to Rome + Secret Weapons of WWII"; Types: recommended custom; Flags: fixed
 Name: "required"; Description: "Required fixes (always installed)"; Types: recommended custom; Flags: fixed
-Name: "required\bf42pp"; Description: "BF42++ {#Ver_bf42pp} (Casqade, sila-skandia)"; Types: recommended custom; Flags: fixed
+Name: "required\bf42pp"; Description: "BF42++ {#Ver_bf42pp} (uuuzbf, Casqade, sila-skandia)"; Types: recommended custom; Flags: fixed
 Name: "required\renderer"; Description: "DXVK {#Ver_dxvk} (auto-detected) or dgVoodoo2 {#Ver_dgvoodoo2} fallback"; Types: recommended custom; Flags: fixed
 Name: "required\hrtf"; Description: "HRTF - DSOAL + OpenAL Soft (3D audio)"; Types: recommended custom; Flags: fixed
 Name: "required\directx"; Description: "DirectX End-User Runtime (June 2010) (only if missing)"; Types: recommended custom; Flags: fixed
@@ -418,6 +418,10 @@ Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile
 ; Installing over an earlier install with DXVK: its d3d9.dll goes first, so it doesn't stay next to dgVoodoo2 (d3d8.dll
 ; is replaced). dxvk.conf and dgVoodoo.conf stay with the player's settings: each fix reads only its own
 Type: files; Name: "{app}\d3d9.dll"; Check: not UseDXVK
+; Setup installed BF42++'s bf42++BlackScreen.exe until v2.1. Only the bf42++.exe loader uses it, not the dsound.dll
+; Setup installs, so the copies an earlier install left go.
+Type: files; Name: "{app}\bf42++BlackScreen.exe"
+Type: files; Name: "{app}\Options\BF42++\bf42++BlackScreen.exe"
 
 [UninstallDelete]
 ; Remove everything in the install folder, including files the game/tools created after install - unless the folder
@@ -1685,7 +1689,7 @@ begin
     L('  (c) DICE / Electronic Arts.') +
     L('') +
     H('REQUIRED FIXES (always installed)') +
-    L('  BF42++ {#Ver_bf42pp} - developed by Casqade, round replays by sila-skandia') +
+    L('  BF42++ {#Ver_bf42pp} - developed by uuuzbf, Casqade and sila-skandia') +
     L('    {#Url_bf42pp}') +
     L('') +
     L('  DXVK {#Ver_dxvk} - developed by Philip Rebohle (doitsujin)') +
