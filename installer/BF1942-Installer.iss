@@ -432,7 +432,6 @@ Type: files; Name: "{app}\Options\WholeFolder.txt"
 ; except the screenshots and replays the player chose to keep. Otherwise (a folder not named for the game, such as
 ; D:\Games, which may hold other games in subfolders) the game's own folders and the files the game and its fixes
 ; make next to BF1942.exe go, so only what the player put there stays
-Type: filesandordirs; Name: "{app}\Mods"; Check: FolderIsGeneral
 Type: filesandordirs; Name: "{app}\Movies"; Check: FolderIsGeneral
 Type: filesandordirs; Name: "{app}\cache"; Check: FolderIsGeneral
 Type: filesandordirs; Name: "{app}\Options"; Check: FolderIsGeneral
@@ -1180,16 +1179,56 @@ begin
   end;
 end;
 
-{ True for a folder that holds only what an uninstall left because the player kept it: ScreenShots, replays and
-  Mods\bf1942\Settings. Setup installs there as into an empty folder, so a reinstall picks the kept settings and
-  profiles up again (Setup's own settings files don't overwrite them) }
+{ The mods the game comes with: bf1942, XPack1, XPack2 and any other folder this build installs in Mods (listed
+  when Setup is compiled). Any other folder in Mods is a mod the player added }
+#define GameMods "|bf1942|xpack1|xpack2|"
+#define ModFind
+#define ModFound
+#define ModName
+#sub AddGameMod
+  #define ModName FindGetFileName(ModFind)
+  #if ModName != "." && ModName != ".." && DirExists(GameDir + "\Mods\" + ModName) && Pos("|" + LowerCase(ModName) + "|", GameMods) == 0
+    #define GameMods GameMods + LowerCase(ModName) + "|"
+  #endif
+#endsub
+#for {ModFind = ModFound = FindFirst(GameDir + "\Mods\*", faAnyFile); ModFound; ModFound = FindNext(ModFind)} AddGameMod
+#if ModFind
+  #expr FindClose(ModFind)
+#endif
+function IsGameMod(const Name: String): Boolean;
+begin
+  Result := Pos('|' + Lowercase(Name) + '|', '{#GameMods}') > 0;
+end;
+
+{ True when Mods holds only folders, none of them an expansion: bf1942 (checked by the caller) and kept mods }
+function ModsHoldOnlyKept(const Dir: String): Boolean;
+var
+  Rec: TFindRec;
+begin
+  { A folder that can't be listed (no access, a broken link) isn't taken for one holding only kept mods }
+  Result := FindFirst(AddBackslash(Dir) + '*', Rec);
+  if Result then
+  try
+    repeat
+      if (Rec.Name <> '.') and (Rec.Name <> '..') then
+        Result := ((Rec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0) and
+                  ((Lowercase(Rec.Name) = 'bf1942') or not IsGameMod(Rec.Name));
+    until not Result or not FindNext(Rec);
+  finally
+    FindClose(Rec);
+  end;
+end;
+
+{ True for a folder that holds only what an uninstall left because the player kept it: ScreenShots, replays,
+  Mods\bf1942\Settings and mods the player added. Setup installs there as into an empty folder, so a reinstall picks
+  the kept settings, profiles and mods up again (Setup's own settings files don't overwrite them) }
 function OnlyKeptPlayerFiles(const Dir: String): Boolean;
 begin
   Result := not FolderIsEmpty(Dir) and OnlyFoldersNamed(Dir, 'ScreenShots|replays|Mods') and
-    (not DirExists(AddBackslash(Dir) + 'Mods') or OnlyFoldersNamed(AddBackslash(Dir) + 'Mods', 'bf1942')) and
+    (not DirExists(AddBackslash(Dir) + 'Mods') or ModsHoldOnlyKept(AddBackslash(Dir) + 'Mods')) and
     (not DirExists(AddBackslash(Dir) + 'Mods\bf1942') or
      OnlyFoldersNamed(AddBackslash(Dir) + 'Mods\bf1942', 'Settings'));
-  if Result then Log(Dir + ' holds only screenshots, replays or settings kept by an uninstall');
+  if Result then Log(Dir + ' holds only screenshots, replays, settings or mods kept by an uninstall');
 end;
 
 { True for a folder that holds a copy this Setup installed: the header of its uninstall data (unins000.dat, or
@@ -1223,8 +1262,9 @@ begin
 end;
 
 { The game only goes to a new or empty folder, so nothing that is already there (another copy of the game, a mod,
-  the player's own files) is overwritten or mixed in with it. The exception is a copy this Setup installed: running
-  Setup again there updates it. The message names something in the folder, as a hidden desktop.ini makes a folder
+  the player's own files) is overwritten or mixed in with it. The exceptions are a copy this Setup installed (running
+  Setup again there updates it) and a folder that holds only what an uninstall kept (OnlyKeptPlayerFiles: the
+  screenshots, replays, settings and mods the game is installed back around). The message names something in the folder, as a hidden desktop.ini makes a folder
   that File Explorer shows as empty count as full. Silent installs stop with the message (unless /SUPPRESSMSGBOXES). }
 function InstallFolderAllowed: Boolean;
 var
@@ -1255,8 +1295,8 @@ begin
             'uninstall it in Settings > Apps first.'
         else
           Msg := Msg + #13#10#13#10 + 'If it is what was left after uninstalling the game, close the game and ' +
-            'anything else that runs from this folder, delete everything in it except the ScreenShots, replays and ' +
-            'Mods\bf1942\Settings folders you want to keep, and try again.';
+            'anything else that runs from this folder, delete everything in it except the ScreenShots, replays, ' +
+            'Mods\bf1942\Settings and mod folders you want to keep, and try again.';
       end else if not IsGameFolderName(ExtractFileName(Dir)) then
         { A typed folder is used as it is: someone who typed the parent (D:\Games) meant a folder inside it }
         Msg := Msg + #13#10#13#10 + 'To install inside it, add \Battlefield 1942 to the end of the path, for example:' + #13#10 +
@@ -1994,12 +2034,14 @@ begin
 end;
 
 var
-  UninstWholeFolder, KeepScreenshots, KeepReplays, KeepSettings: Boolean;
+  UninstWholeFolder, KeepScreenshots, KeepReplays, KeepSettings, KeepMods: Boolean;
+  UninstKind: Integer;
+  PlayerMods, NotMoved: TStringList;
 
 { Screenshots (ScreenShots: the game's ScreenShot<n> and BF42++'s <yyyy-mm-dd_hh-mm-ss-mmm> names), BF42++ replays
-  (replays\replay_<time>.ndjson) and the game's settings and profiles (Mods\bf1942\Settings) are the player's own,
-  so the uninstaller asks whether to keep each. All are kept unless the player unticks them; a silent uninstall
-  keeps them }
+  (replays\replay_<time>.ndjson), the game's settings and profiles (Mods\bf1942\Settings) and the mods the player
+  added (folders in Mods other than bf1942, XPack1 and XPack2) are the player's own, so the uninstaller asks whether
+  to keep each. All are kept unless the player unticks them; a silent uninstall keeps them }
 function ShotsFolder: String;
 begin
   Result := ExpandConstant('{app}\ScreenShots');
@@ -2040,6 +2082,44 @@ begin
     end;
 end;
 
+{ The mods the player added: folders in Mods that hold files and aren't the game's own }
+procedure FindPlayerMods;
+var
+  FindRec: TFindRec;
+  Mods: String;
+begin
+  PlayerMods := TStringList.Create;
+  Mods := ExpandConstant('{app}\Mods');
+  if FindFirst(AddBackslash(Mods) + '*', FindRec) then
+    try
+      repeat
+        if ((FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0) and (FindRec.Name <> '.') and
+           (FindRec.Name <> '..') and not IsGameMod(FindRec.Name) and
+           FolderHasFiles(AddBackslash(Mods) + FindRec.Name, True) then
+          PlayerMods.Add(FindRec.Name);
+      until not FindNext(FindRec);
+    finally
+      FindClose(FindRec);
+    end;
+  if PlayerMods.Count > 0 then Log('Mods the player added: ' + PlayerMods.CommaText);
+end;
+
+{ "DesertCombat, Forgotten Hope and Pirates", or "A, B, C, D, E, F and 3 more" past six }
+function PlayerModNames: String;
+var
+  I: Integer;
+begin
+  Result := '';
+  for I := 0 to PlayerMods.Count - 1 do
+    if I < 6 then begin
+      if I > 0 then begin
+        if (I = PlayerMods.Count - 1) then Result := Result + ' and ' else Result := Result + ', ';
+      end;
+      Result := Result + PlayerMods[I];
+    end;
+  if PlayerMods.Count > 6 then Result := Result + Format(' and %d more', [PlayerMods.Count - 6]);
+end;
+
 function AddKeepBox(Form: TSetupForm; const Top: Integer; const Caption, NoneCaption: String;
   const Has: Boolean): TNewCheckBox;
 begin
@@ -2058,18 +2138,22 @@ procedure AskKeepPlayerFiles;
 var
   Form: TSetupForm;
   Info: TNewStaticText;
-  ShotsBox, ReplaysBox, SettingsBox: TNewCheckBox;
+  ShotsBox, ReplaysBox, SettingsBox, ModsBox: TNewCheckBox;
+  ModNames: TNewStaticText;
   OKButton: TNewButton;
-  HasShots, HasReplays, HasSettings: Boolean;
+  HasShots, HasReplays, HasSettings, HasMods: Boolean;
 begin
   KeepScreenshots := True;
   KeepReplays := True;
   KeepSettings := True;
+  KeepMods := True;
+  FindPlayerMods;
   HasShots := FolderHasFiles(ShotsFolder, False);
   HasReplays := FolderHasFiles(ReplaysFolder, False);
   HasSettings := FolderHasFiles(SettingsFolder, True);
-  if UninstallSilent or not (HasShots or HasReplays or HasSettings) then Exit;
-  Form := CreateCustomForm(ScaleX(400), ScaleY(178), False, True);
+  HasMods := PlayerMods.Count > 0;
+  if UninstallSilent or not (HasShots or HasReplays or HasSettings or HasMods) then Exit;
+  Form := CreateCustomForm(ScaleX(400), ScaleY(220), False, True);
   try
     Form.Caption := '{#InstallerTitle}';
     Info := TNewStaticText.Create(Form);
@@ -2080,8 +2164,8 @@ begin
     Info.AutoSize := False;
     Info.WordWrap := True;
     Info.Height := ScaleY(32);
-    Info.Caption := 'Your screenshots, replays and game settings are in the game folder. Untick what you want ' +
-      'deleted with the game.';
+    Info.Caption := 'Your screenshots, replays, game settings and mods are in the game folder. Untick what you ' +
+      'want deleted with the game.';
 
     ShotsBox := AddKeepBox(Form, Info.Top + Info.Height + ScaleY(8),
       '&Keep my screenshots (ScreenShots folder)', 'Keep my screenshots - there are none', HasShots);
@@ -2090,6 +2174,19 @@ begin
     SettingsBox := AddKeepBox(Form, ReplaysBox.Top + ReplaysBox.Height + ScaleY(6),
       'Keep my &settings and profiles (Mods\bf1942\Settings folder)', 'Keep my settings - there are none',
       HasSettings);
+    ModsBox := AddKeepBox(Form, SettingsBox.Top + SettingsBox.Height + ScaleY(6),
+      'Keep my &mods (folders in Mods other than the game''s own):', 'Keep my mods - there are none', HasMods);
+    { The names go in a label of their own: it wraps, and an & in a folder name stays an & }
+    ModNames := TNewStaticText.Create(Form);
+    ModNames.Parent := Form;
+    ModNames.Left := ScaleX(30);
+    ModNames.Top := ModsBox.Top + ModsBox.Height + ScaleY(2);
+    ModNames.Width := Form.ClientWidth - ScaleX(42);
+    ModNames.ShowAccelChar := False;
+    ModNames.WordWrap := True;
+    ModNames.AutoSize := True;
+    ModNames.Caption := PlayerModNames;
+    Form.ClientHeight := ModNames.Top + ModNames.Height + ScaleY(12 + 23 + 12);
 
     OKButton := TNewButton.Create(Form);
     OKButton.Parent := Form;
@@ -2107,13 +2204,17 @@ begin
     KeepScreenshots := ShotsBox.Checked or not HasShots;
     KeepReplays := ReplaysBox.Checked or not HasReplays;
     KeepSettings := SettingsBox.Checked or not HasSettings;
+    KeepMods := ModsBox.Checked or not HasMods;
   finally
     Form.Free;
   end;
 end;
 
-{ A kept folder is moved out of the game folder before the uninstaller deletes anything (a rename, or a copy when
-  the rename fails) and put back afterwards. If it can't be put back, it stays in KeptFolder rather than being lost }
+{ A kept folder is moved out of the game folder before the uninstaller deletes anything and put back afterwards. It
+  is renamed, never copied: mods are large, and a copy that fails half way would lose what the delete then removes.
+  When the rename fails (the game or another program has a file in it open), the player can close it and retry;
+  otherwise the folder stays where it is (NotMoved) and the clean-up leaves it alone. If it can't be put back, it
+  stays in KeptFolder rather than being lost }
 procedure SetAside(const Rel: String; const Keep: Boolean);
 var
   Src, Dest: String;
@@ -2122,19 +2223,62 @@ begin
   if not (Keep and DirExists(Src)) then Exit;
   Dest := AddBackslash(KeptFolder) + Rel;
   ForceDirectories(ExtractFileDir(Dest));
-  if not DirExists(Dest) and RenameFile(Src, Dest) then
-    Log('Set aside: ' + Src + ' -> ' + Dest)
-  else begin
-    Log('Could not move ' + Src + ' - copying it to ' + Dest);
-    CopyDir(Src, Dest);
+  while not (not DirExists(Dest) and RenameFile(Src, Dest)) do begin
+    Log('Could not move ' + Src + ' to ' + Dest);
+    if UninstallSilent or DirExists(Dest) or (MsgBox('Your ' + Rel + ' folder can''t be set aside while it is ' +
+         'in use. Close Battlefield 1942, DataField42 and anything else that uses it, then click Retry.' + #13#10#13#10 +
+         'Click Cancel to leave it where it is: the uninstaller then doesn''t delete it.',
+         mbError, MB_RETRYCANCEL) <> IDRETRY) then begin
+      Log('Leaving ' + Src + ' in place');
+      NotMoved.Add(Src);
+      Exit;
+    end;
   end;
+  Log('Set aside: ' + Src + ' -> ' + Dest);
+end;
+
+{ Deletes Path, except folders in NotMoved and what is in them }
+procedure DelTreeExcept(const Path: String; const IsDir: Boolean);
+var
+  FindRec: TFindRec;
+  I: Integer;
+  Holds: Boolean;
+begin
+  if not IsDir then begin
+    DelTree(Path, False, True, False);
+    Exit;
+  end;
+  Holds := False;
+  for I := 0 to NotMoved.Count - 1 do begin
+    if PathSame(NotMoved[I], Path) then Exit;
+    if PathStartsWith(NotMoved[I], AddBackslash(Path), True) then Holds := True;
+  end;
+  if not Holds then begin
+    DelTree(Path, True, True, True);
+    Exit;
+  end;
+  if FindFirst(AddBackslash(Path) + '*', FindRec) then
+    try
+      repeat
+        if (FindRec.Name <> '.') and (FindRec.Name <> '..') then
+          DelTreeExcept(AddBackslash(Path) + FindRec.Name, (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0);
+      until not FindNext(FindRec);
+    finally
+      FindClose(FindRec);
+    end;
+  RemoveDir(Path);
 end;
 
 procedure SetKeptFilesAside;
+var
+  I: Integer;
 begin
+  NotMoved := TStringList.Create;
   SetAside('ScreenShots', KeepScreenshots);
   SetAside('replays', KeepReplays);
   SetAside('Mods\bf1942\Settings', KeepSettings);
+  for I := 0 to PlayerMods.Count - 1 do
+    SetAside('Mods\' + PlayerMods[I], KeepMods);
 end;
 
 procedure PutBack(const Rel: String);
@@ -2152,27 +2296,33 @@ begin
 end;
 
 procedure PutKeptFilesBack;
+var
+  I: Integer;
 begin
   if not DirExists(KeptFolder) then Exit;
   PutBack('ScreenShots');
   PutBack('replays');
   PutBack('Mods\bf1942\Settings');
+  for I := 0 to PlayerMods.Count - 1 do
+    PutBack('Mods\' + PlayerMods[I]);
   RemoveDir(AddBackslash(KeptFolder) + 'Mods\bf1942');
   RemoveDir(AddBackslash(KeptFolder) + 'Mods');
   RemoveDir(KeptFolder);
 end;
 
 { After the uninstaller removed its own entries: a folder named for the game is emptied completely; in a general
-  folder, the game's own screenshot and replay names go when the player didn't keep them. Then the kept folders go
-  back, and the game folder goes when nothing is left in it }
+  folder, the game's own screenshot and replay names and the player's mods go when the player didn't keep them.
+  Then the kept folders go back, and the game folder goes when nothing is left in it }
 procedure CleanGameFolder;
 var
   Dir, Path: String;
   FindRec: TFindRec;
+  I: Integer;
 begin
   Dir := ExpandConstant('{app}');
-  Log(Format('Cleaning %s (whole folder: %d, keep screenshots: %d, keep replays: %d, keep settings: %d)', [
-    Dir, Ord(UninstWholeFolder), Ord(KeepScreenshots), Ord(KeepReplays), Ord(KeepSettings)]));
+  Log(Format('Cleaning %s (whole folder: %d, keep screenshots: %d, keep replays: %d, keep settings: %d, ' +
+    'keep mods: %d)', [Dir, Ord(UninstWholeFolder), Ord(KeepScreenshots), Ord(KeepReplays), Ord(KeepSettings),
+    Ord(KeepMods)]));
   if DirExists(Dir) then begin
     if UninstWholeFolder then begin
       if FindFirst(AddBackslash(Dir) + '*', FindRec) then
@@ -2181,7 +2331,7 @@ begin
             if (FindRec.Name <> '.') and (FindRec.Name <> '..') then begin
               Path := AddBackslash(Dir) + FindRec.Name;
               { DelTree also deletes read-only files }
-              DelTree(Path, (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0, True, True);
+              DelTreeExcept(Path, (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0);
             end;
           until not FindNext(FindRec);
         finally
@@ -2197,6 +2347,24 @@ begin
         DelTree(AddBackslash(ReplaysFolder) + 'replay_*.ndjson', False, True, False);
         RemoveDir(ReplaysFolder);
       end;
+      if not KeepMods then
+        for I := 0 to PlayerMods.Count - 1 do
+          DelTree(ExpandConstant('{app}\Mods\') + PlayerMods[I], True, True, True);
+      { A general folder: the game's own mods go, and empty folders (the player's mods were set aside or deleted
+        above) }
+      if UninstKind = 2 then
+        if FindFirst(ExpandConstant('{app}\Mods\*'), FindRec) then
+          try
+            repeat
+              if ((FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0) and (FindRec.Name <> '.') and
+                 (FindRec.Name <> '..') and (IsGameMod(FindRec.Name) or
+                 not FolderHasFiles(ExpandConstant('{app}\Mods\') + FindRec.Name, True)) then
+                DelTreeExcept(ExpandConstant('{app}\Mods\') + FindRec.Name, True);
+            until not FindNext(FindRec);
+          finally
+            FindClose(FindRec);
+          end;
+      RemoveDir(ExpandConstant('{app}\Mods'));
     end;
   end;
   PutKeptFilesBack;
@@ -2407,9 +2575,14 @@ begin
   end;
   if CurUninstallStep <> usUninstall then Exit;
   { This copy's own decision (FolderKind), written into its folder: the state key is shared by every copy }
-  UninstWholeFolder := LoadStringFromFile(ExpandConstant('{app}\Options\WholeFolder.txt'), RawKind) and
-    (Trim(String(RawKind)) = '1');
+  if LoadStringFromFile(ExpandConstant('{app}\Options\WholeFolder.txt'), RawKind) then
+    UninstKind := StrToIntDef(Trim(String(RawKind)), 0)
+  else
+    UninstKind := 0;
+  UninstWholeFolder := UninstKind = 1;
   AskKeepPlayerFiles;
+  { DataField42 may be reading the mods: close it before they are moved aside }
+  if DataField42Here then CloseDataField42;
   SetKeptFilesAside;
   if not RegQueryStringValue(HKLM32, ErgcKey, '', KeptSerial) then KeptSerial := '';
   { The Compatibility Profile is registered while BF1942.sdb is in the game folder - by Setup or by BF1942 Options,

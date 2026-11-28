@@ -78,7 +78,7 @@ For the people who run your `Setup.exe`:
 - Its DataField42 and Rich Presence installs.
 - The PunkBuster pieces for this game. The shared PunkBuster Services are removed only if no other PunkBuster game is installed.
 - The Windows Firewall rules for the game folder.
-- Screenshots, replays and the game's settings and profiles (`Mods\bf1942\Settings`) only if the player unticks **Keep my screenshots** / **Keep my replays** / **Keep my settings and profiles** in the window the uninstaller shows.
+- Screenshots, replays, the game's settings and profiles (`Mods\bf1942\Settings`) and mods the player added (folders in `Mods` other than `bf1942`, `XPack1`, `XPack2` and any other mod the build installs) only if the player unticks **Keep my screenshots** / **Keep my replays** / **Keep my settings and profiles** / **Keep my mods** in the window the uninstaller shows.
 
 ---
 
