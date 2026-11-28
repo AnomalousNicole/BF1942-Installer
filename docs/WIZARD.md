@@ -54,7 +54,7 @@ And the notes at the end - serial handling, the skip-intro option and how to uni
 
 The default folder is `defaultInstallDir` in `config.json`. The required disk space is measured at build time.
 
-With `appendEAGamesFolder` on, the installer makes sure the path ends in `EA Games\Battlefield 1942`: whatever the player types or browses to gets it added, unless the path already ends with it. The **Will install to:** line under the box shows the resulting path as it is typed, so the correction is never a surprise.
+With `appendEAGamesFolder` on, a folder the player picks with **Browse...** gets `EA Games\Battlefield 1942` added (only `Battlefield 1942` for an `EA Games` folder, nothing for a folder whose name starts with `Battlefield 1942`). A folder the player types is used exactly as typed, so they can still remove `EA Games` (for example `D:\Games\Battlefield 1942`).
 
 The folder must be empty or not exist yet. When it already has files in it, such as another copy of the game, **Next** says so, names a file it found (and whether it is hidden), and stays on the page, so nothing that is already there gets overwritten. A copy of the game this Setup installed is the exception: running Setup again there updates it.
 

@@ -78,6 +78,7 @@ For the people who run your `Setup.exe`:
 - Its DataField42 and Rich Presence installs.
 - The PunkBuster pieces for this game. The shared PunkBuster Services are removed only if no other PunkBuster game is installed.
 - The Windows Firewall rules for the game folder.
+- Screenshots, replays and the game's settings and profiles (`Mods\bf1942\Settings`) only if the player unticks **Keep my screenshots** / **Keep my replays** / **Keep my settings and profiles** in the window the uninstaller shows.
 
 ---
 
@@ -154,7 +155,7 @@ Eight pages, from Welcome to Finish. **[docs/WIZARD.md](docs/WIZARD.md) walks th
 | `appPublisher` | `BF1942 Community` | Publisher shown in Installed apps. |
 | `outputBaseFilename` | `BF1942_Expansions_Setup` | File name of the built `.exe` (and of the `.bin` files of a split build). |
 | `defaultInstallDir` | `{sd}\EA Games\Battlefield 1942` | Default install folder. `{sd}` is the system drive. |
-| `appendEAGamesFolder` | `true` | Always install into `<chosen folder>\EA Games\Battlefield 1942`. Picking `C:\Temp` with **Browse...** shows `C:\Temp\EA Games\Battlefield 1942` right away, and a *"Will install to: …"* line under the box follows what the user types. |
+| `appendEAGamesFolder` | `true` | A folder picked with **Browse...** gets `EA Games\Battlefield 1942` added: picking `C:\Temp` shows `C:\Temp\EA Games\Battlefield 1942` right away. A folder the user types (or `/DIR=`) is used exactly as typed. |
 | `serverShortcutName` | `Battlefield 1942 - Join Server` | Name of the "join server" desktop shortcut. Only used with `serverAddress`. |
 | `serverAddress` | *(empty)* | `ip:port` to join, for example `203.0.113.10:14567`. Leave empty for no server shortcut. |
 | `discordUrl` | *(empty)* | An invite to your community's Discord, for example `https://discord.gg/abc123`. BF1942 Options shows a **Join our Discord** button when it is set. |

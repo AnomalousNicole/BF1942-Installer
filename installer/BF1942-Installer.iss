@@ -410,9 +410,11 @@ Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile
 ; Close any PunkBuster setup window still running from the game folder so its pbsvc.exe can be deleted
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""$d = '{code:PSApp}\'; Get-Process pbsvc -ErrorAction SilentlyContinue | Where-Object {{ $_.Path -and $_.Path.StartsWith($d, [StringComparison]::OrdinalIgnoreCase) } | Stop-Process -Force"""; RunOnceId: "ClosePunkBusterSetup"; Components: punkbuster; Flags: runhidden waituntilterminated
 #endif
-; Remove Windows Firewall rules that Windows created for programs in the game folder (bf1942.exe, dedicated server, pbsvc.exe...)
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""$d = '{code:PSApp}\'; Get-NetFirewallApplicationFilter | Where-Object {{ $_.Program -and $_.Program.StartsWith($d, [StringComparison]::OrdinalIgnoreCase) } | Get-NetFirewallRule | Remove-NetFirewallRule"""; RunOnceId: "RemoveFirewallRules64"; Check: IsWin64; Flags: runhidden waituntilterminated 64bit
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""$d = '{code:PSApp}\'; Get-NetFirewallApplicationFilter | Where-Object {{ $_.Program -and $_.Program.StartsWith($d, [StringComparison]::OrdinalIgnoreCase) } | Get-NetFirewallRule | Remove-NetFirewallRule"""; RunOnceId: "RemoveFirewallRules32"; Check: not IsWin64; Flags: runhidden waituntilterminated
+; Remove Windows Firewall rules that Windows created for programs in the game folder (bf1942.exe, dedicated server, pbsvc.exe...).
+; When the whole folder doesn't go (FolderIsGameFolder), as it may hold other games in subfolders, only the rules for
+; programs directly in it or in the game's own subfolders go
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""$d = '{code:PSApp}\'; $w = '{code:WholeFolderValue}'; Get-NetFirewallApplicationFilter | Where-Object {{ $p = $_.Program; $p -and $p.StartsWith($d, [StringComparison]::OrdinalIgnoreCase) -and ($w -eq '1' -or $p.Substring($d.Length) -match '^(BF1942[^\\]*|DedicatedServer|BlackScreen|pbsvc|DataField42[^\\]*|Borderless1942|bf42\+\+)\.exe$' -or $p.Substring($d.Length) -match '^(pb|Options|AdminTool|Mods|eReg)\\') } | Get-NetFirewallRule | Remove-NetFirewallRule"""; RunOnceId: "RemoveFirewallRules64"; Check: IsWin64; Flags: runhidden waituntilterminated 64bit
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""$d = '{code:PSApp}\'; $w = '{code:WholeFolderValue}'; Get-NetFirewallApplicationFilter | Where-Object {{ $p = $_.Program; $p -and $p.StartsWith($d, [StringComparison]::OrdinalIgnoreCase) -and ($w -eq '1' -or $p.Substring($d.Length) -match '^(BF1942[^\\]*|DedicatedServer|BlackScreen|pbsvc|DataField42[^\\]*|Borderless1942|bf42\+\+)\.exe$' -or $p.Substring($d.Length) -match '^(pb|Options|AdminTool|Mods|eReg)\\') } | Get-NetFirewallRule | Remove-NetFirewallRule"""; RunOnceId: "RemoveFirewallRules32"; Check: not IsWin64; Flags: runhidden waituntilterminated
 
 [InstallDelete]
 ; Installing over an earlier install with DXVK: its d3d9.dll goes first, so it doesn't stay next to dgVoodoo2 (d3d8.dll
@@ -424,9 +426,49 @@ Type: files; Name: "{app}\bf42++BlackScreen.exe"
 Type: files; Name: "{app}\Options\BF42++\bf42++BlackScreen.exe"
 
 [UninstallDelete]
-; Remove everything in the install folder, including files the game/tools created after install - unless the folder
-; held something else than a game before Setup ran (see FolderIsGameFolder): then only what Setup installed goes
-Type: filesandordirs; Name: "{app}"; Check: FolderIsGameFolder
+; Written in ssPostInstall: what uninstalling this copy may delete (FolderKind)
+Type: files; Name: "{app}\Options\WholeFolder.txt"
+; A folder named for the game (FolderIsGameFolder) is emptied completely by CleanGameFolder after these entries,
+; except the screenshots and replays the player chose to keep. Otherwise (a folder not named for the game, such as
+; D:\Games, which may hold other games in subfolders) the game's own folders and the files the game and its fixes
+; make next to BF1942.exe go, so only what the player put there stays
+Type: filesandordirs; Name: "{app}\Mods"; Check: FolderIsGeneral
+Type: filesandordirs; Name: "{app}\Movies"; Check: FolderIsGeneral
+Type: filesandordirs; Name: "{app}\cache"; Check: FolderIsGeneral
+Type: filesandordirs; Name: "{app}\Options"; Check: FolderIsGeneral
+Type: filesandordirs; Name: "{app}\pb"; Check: FolderIsGeneral
+Type: filesandordirs; Name: "{app}\AdminTool"; Check: FolderIsGeneral
+Type: filesandordirs; Name: "{app}\eReg"; Check: FolderIsGeneral
+Type: filesandordirs; Name: "{app}\manual"; Check: FolderIsGeneral
+Type: filesandordirs; Name: "{app}\Licenses"; Check: FolderIsGeneral
+; BF1942.pid, BF1942.sdb, the DXVK logs and cache (BF1942_d3d8.log, BF1942.dxvk-cache), the fixes' settings and logs
+Type: files; Name: "{app}\BF1942*"; Check: FolderIsGeneral
+Type: files; Name: "{app}\bf42++*"; Check: FolderIsGeneral
+Type: files; Name: "{app}\dxvk*"; Check: FolderIsGeneral
+Type: files; Name: "{app}\dgVoodoo*"; Check: FolderIsGeneral
+Type: files; Name: "{app}\alsoft*"; Check: FolderIsGeneral
+Type: files; Name: "{app}\dsoal*"; Check: FolderIsGeneral
+Type: files; Name: "{app}\dsound*.dll"; Check: FolderIsGeneral
+Type: files; Name: "{app}\d3d8.dll"; Check: FolderIsGeneral
+Type: files; Name: "{app}\d3d9.dll"; Check: FolderIsGeneral
+Type: files; Name: "{app}\Borderless1942*"; Check: FolderIsGeneral
+; PunkBuster: the setup window Punkbuster42 leaves in the game folder (BF1942 Options runs it from there) and the
+; uninstaller of its "Punkbuster for Battlefield 1942" entry
+Type: files; Name: "{app}\pbsvc.exe"; Check: FolderIsGeneral
+Type: files; Name: "{app}\Uninstal.exe"; Check: FolderIsGeneral
+; DataField42 keeps its settings, logs, download cache and checksum cache in a DataField42 folder next to its exe,
+; and its updater leaves DataField42_updater.exe / DataField42_tmp.exe; its own uninstaller removes only its files.
+; Synchronization rules.txt is where older versions kept their rules
+Type: filesandordirs; Name: "{app}\DataField42"; Check: FolderIsGeneral
+Type: files; Name: "{app}\DataField42*"; Check: FolderIsGeneral
+Type: files; Name: "{app}\Synchronization rules.txt"; Check: FolderIsGeneral
+; BF42++ writes into folders with general names, so only its own files go, and the folder when that empties it:
+; logs\bf42++_debug*.log, logs\bf42++_unknown_events.log, logs\crash\<yyyy-mm-dd_hh-mm-ss-mmm>_<reason>.log. Its screenshots and
+; replays (ScreenShots, replays) go in CleanGameFolder, as the player chooses whether to keep them
+Type: files; Name: "{app}\logs\bf42++_*.log"; Check: FolderIsGeneral
+Type: files; Name: "{app}\logs\crash\????-??-??_??-??-??-???_*.log"; Check: FolderIsGeneral
+Type: dirifempty; Name: "{app}\logs\crash"; Check: FolderIsGeneral
+Type: dirifempty; Name: "{app}\logs"; Check: FolderIsGeneral
 ; BF1942 Options creates this shortcut when Borderless1942 is turned on after install
 Type: files; Name: "{autodesktop}\Battlefield 1942 (Borderless).lnk"
 ; The profile Setup created for the player name (only one it created: a profile that was there before is the player's)
@@ -1120,6 +1162,36 @@ begin
   Result := FirstItemIn(Dir, Hidden) = '';
 end;
 
+{ True when every item in Dir is one of the given names (separated by |) and is a folder }
+function OnlyFoldersNamed(const Dir, Names: String): Boolean;
+var
+  Rec: TFindRec;
+begin
+  Result := FindFirst(AddBackslash(Dir) + '*', Rec);
+  if not Result then Exit;
+  try
+    repeat
+      if (Rec.Name <> '.') and (Rec.Name <> '..') then
+        Result := ((Rec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0) and
+                  (Pos('|' + Lowercase(Rec.Name) + '|', '|' + Lowercase(Names) + '|') > 0);
+    until not Result or not FindNext(Rec);
+  finally
+    FindClose(Rec);
+  end;
+end;
+
+{ True for a folder that holds only what an uninstall left because the player kept it: ScreenShots, replays and
+  Mods\bf1942\Settings. Setup installs there as into an empty folder, so a reinstall picks the kept settings and
+  profiles up again (Setup's own settings files don't overwrite them) }
+function OnlyKeptPlayerFiles(const Dir: String): Boolean;
+begin
+  Result := not FolderIsEmpty(Dir) and OnlyFoldersNamed(Dir, 'ScreenShots|replays|Mods') and
+    (not DirExists(AddBackslash(Dir) + 'Mods') or OnlyFoldersNamed(AddBackslash(Dir) + 'Mods', 'bf1942')) and
+    (not DirExists(AddBackslash(Dir) + 'Mods\bf1942') or
+     OnlyFoldersNamed(AddBackslash(Dir) + 'Mods\bf1942', 'Settings'));
+  if Result then Log(Dir + ' holds only screenshots, replays or settings kept by an uninstall');
+end;
+
 { True for a folder that holds a copy this Setup installed: the header of its uninstall data (unins000.dat, or
   unins001.dat and on when another program's uninstaller is there too) names this AppId. Settings > Apps only lists
   the last install (PrevAppDir); this also finds a copy that lost its entry to a second copy in another folder.
@@ -1144,6 +1216,12 @@ begin
     end;
 end;
 
+{ True for a last folder named "Battlefield 1942" or starting with it, such as "Battlefield 1942-Test" }
+function IsGameFolderName(const Name: String): Boolean;
+begin
+  Result := CompareText(Copy(Name, 1, Length('Battlefield 1942')), 'Battlefield 1942') = 0;
+end;
+
 { The game only goes to a new or empty folder, so nothing that is already there (another copy of the game, a mod,
   the player's own files) is overwritten or mixed in with it. The exception is a copy this Setup installed: running
   Setup again there updates it. The message names something in the folder, as a hidden desktop.ini makes a folder
@@ -1157,7 +1235,7 @@ begin
   Dir := RemoveBackslashUnlessRoot(WizardDirValue);
   if DirExists(Dir) then begin
     Item := FirstItemIn(Dir, Hidden);
-    if Item = '' then Exit;
+    if (Item = '') or OnlyKeptPlayerFiles(Dir) then Exit;
     if PathSame(RemoveBackslashUnlessRoot(WizardForm.PrevAppDir), Dir) or HasOwnInstall(Dir) then begin
       Log('Installing over the earlier install in ' + Dir);
       Exit;
@@ -1177,8 +1255,12 @@ begin
             'uninstall it in Settings > Apps first.'
         else
           Msg := Msg + #13#10#13#10 + 'If it is what was left after uninstalling the game, close the game and ' +
-            'anything else that runs from this folder, delete the folder and try again.';
-      end;
+            'anything else that runs from this folder, delete everything in it except the ScreenShots, replays and ' +
+            'Mods\bf1942\Settings folders you want to keep, and try again.';
+      end else if not IsGameFolderName(ExtractFileName(Dir)) then
+        { A typed folder is used as it is: someone who typed the parent (D:\Games) meant a folder inside it }
+        Msg := Msg + #13#10#13#10 + 'To install inside it, add \Battlefield 1942 to the end of the path, for example:' + #13#10 +
+          AddBackslash(Dir) + 'Battlefield 1942';
     end;
   end else if FileOrDirExists(Dir) then begin
     Log('Install folder refused: ' + Dir + ' is a file');
@@ -1555,69 +1637,28 @@ end;
 
 { ---------- Install folder ---------- }
 
-{ Optionally (appendEAGamesFolder) always install to <chosen folder>\EA Games\Battlefield 1942,
-  e.g. C:\Temp -> C:\Temp\EA Games\Battlefield 1942 }
+{ Optionally (appendEAGamesFolder) a folder picked with Browse... gets EA Games\Battlefield 1942 added,
+  e.g. C:\Temp -> C:\Temp\EA Games\Battlefield 1942 (only Battlefield 1942 after an EA Games folder; nothing when the
+  last folder starts with Battlefield 1942). A typed folder is the player's choice and is used exactly as typed, so
+  they can remove EA Games from the path }
 function EndsWithDir(const Path, Tail: String): Boolean;
 begin
   Result := PathEndsWith(Path, '\' + Tail, True);
 end;
 
-{ True for a last folder named "Battlefield 1942" or starting with it, such as "Battlefield 1942-Test" }
-function IsGameFolderName(const Name: String): Boolean;
-begin
-  Result := CompareText(Copy(Name, 1, Length('Battlefield 1942')), 'Battlefield 1942') = 0;
-end;
-
 function NormalizeInstallDir(Dir: String): String;
 begin
   Dir := RemoveBackslashUnlessRoot(Trim(Dir));
-  if IsGameFolderName(ExtractFileName(Dir)) and EndsWithDir(ExtractFileDir(Dir), 'EA Games') then
+  if IsGameFolderName(ExtractFileName(Dir)) then
     Result := Dir
-  else if IsGameFolderName(ExtractFileName(Dir)) then
-    Result := PathCombine(ExtractFileDir(Dir), 'EA Games\' + ExtractFileName(Dir))
   else if EndsWithDir(Dir, 'EA Games') then
     Result := PathCombine(Dir, 'Battlefield 1942')
   else
     Result := PathCombine(Dir, 'EA Games\Battlefield 1942');
 end;
 
-var
-  InstallDirHint: TNewStaticText;
-
-{ Shows the folder the game will really end up in, so the rule is visible while typing }
-procedure UpdateInstallDirHint;
-var
-  Current: String;
-begin
-  if InstallDirHint = nil then Exit;
-  Current := Trim(WizardForm.DirEdit.Text);
-  if Current = '' then
-    InstallDirHint.Caption := ''
-  else
-    InstallDirHint.Caption := 'Will install to:  ' + NormalizeInstallDir(Current);
-end;
-
-procedure DirEditChange(Sender: TObject);
-begin
-  UpdateInstallDirHint;
-end;
-
-{ Applies the folder rule to the folder box on the Select Destination Location page }
-procedure ApplyInstallDirRule;
-var
-  Current, Fixed: String;
-begin
-  Current := Trim(WizardForm.DirEdit.Text);
-  if Current = '' then Exit;
-  Fixed := NormalizeInstallDir(Current);
-  if WizardForm.DirEdit.Text <> Fixed then begin
-    Log('Install folder adjusted: ' + WizardForm.DirEdit.Text + ' -> ' + Fixed);
-    WizardForm.DirEdit.Text := Fixed;
-  end;
-  UpdateInstallDirHint;
-end;
-
-{ Browse... : the picked folder is the parent, so C:\Temp shows as C:\Temp\EA Games\Battlefield 1942 right away }
+{ Browse... : the picked folder is the parent, so C:\Temp shows as C:\Temp\EA Games\Battlefield 1942 right away.
+  The player can still edit the box afterwards; a typed folder is used exactly as typed }
 procedure DirBrowseButtonClick(Sender: TObject);
 var
   Dir: String;
@@ -1627,33 +1668,20 @@ begin
   while (Dir <> '') and not DirExists(Dir) and not PathSame(Dir, ExtractFileDir(Dir)) do
     Dir := ExtractFileDir(Dir);
   if BrowseForFolder(SetupMessage(msgBrowseDialogTitle), Dir, True) then begin
-    WizardForm.DirEdit.Text := Dir;
-    ApplyInstallDirRule;
+    { OK on the folder already in the box (it exists, e.g. the game being updated) keeps it rather than nesting
+      a new one inside it }
+    if PathSame(RemoveBackslashUnlessRoot(Dir), RemoveBackslashUnlessRoot(Trim(WizardForm.DirEdit.Text))) and
+       (PathSame(RemoveBackslashUnlessRoot(Dir), RemoveBackslashUnlessRoot(WizardForm.PrevAppDir)) or
+        HasOwnInstall(Dir) or FileExists(AddBackslash(Dir) + 'BF1942.exe')) then Exit;
+    WizardForm.DirEdit.Text := NormalizeInstallDir(Dir);
+    Log('Install folder picked: ' + Dir + ' -> ' + WizardForm.DirEdit.Text);
   end;
-end;
-
-{ A typed folder gets the rule as soon as the user leaves the box }
-procedure DirEditExit(Sender: TObject);
-begin
-  ApplyInstallDirRule;
 end;
 
 procedure HookInstallDirPage;
 begin
 #if AppendEAGames
   WizardForm.DirBrowseButton.OnClick := @DirBrowseButtonClick;
-  WizardForm.DirEdit.OnExit := @DirEditExit;
-  WizardForm.DirEdit.OnChange := @DirEditChange;
-  InstallDirHint := TNewStaticText.Create(WizardForm);
-  InstallDirHint.Parent := WizardForm.DirEdit.Parent;
-  InstallDirHint.Left := WizardForm.DirEdit.Left;
-  InstallDirHint.Top := WizardForm.DirEdit.Top + WizardForm.DirEdit.Height + ScaleY(8);
-  InstallDirHint.Width := WizardForm.DirBrowseButton.Left + WizardForm.DirBrowseButton.Width - WizardForm.DirEdit.Left;
-  InstallDirHint.AutoSize := False;
-  InstallDirHint.WordWrap := True;
-  InstallDirHint.Height := WizardForm.DiskSpaceLabel.Height * 3;
-  InstallDirHint.ShowAccelChar := False;
-  UpdateInstallDirHint;
 #endif
 end;
 
@@ -1761,9 +1789,6 @@ function NextButtonClick(CurPageID: Integer): Boolean;
 begin
   Result := True;
   if CurPageID = wpSelectDir then begin
-#if AppendEAGames
-    ApplyInstallDirRule;
-#endif
     Result := InstallFolderAllowed;
     if Result then Result := ConfirmSecondInstall;
     if Result then SelectFromGameFolder;
@@ -1844,35 +1869,60 @@ begin
 end;
 
 var
-  FolderChecked, FolderIsGame: Boolean;
+  FolderChecked: Boolean;
+  FolderKindValue: Integer;
 
-{ Whether uninstalling may delete the whole install folder: it was new or empty, or it already held the game
-  (an earlier install). Setup only installs to such a folder now (InstallFolderAllowed); a folder that held other
-  things and no game, which installers before November 2026 allowed, keeps them. Decided before any file is
-  copied (ssInstall), as [UninstallDelete] is set up during the install. Running Setup again over its own install
-  keeps what the first install decided (WholeFolder in the state key): BF1942.exe is in the folder by then. }
-function FolderIsGameFolder: Boolean;
+{ What uninstalling may delete, decided before any file is copied (ssInstall), as [UninstallDelete] is set up
+  during the install:
+  1 - the whole folder: it was new or empty (or held only what an uninstall kept) and is named for the game, or it
+      already held the game (an earlier install);
+  2 - a general folder: new or empty, but with another name (a typed folder is used as it is, so it can be D:\Games
+      that other games go into later). The game's own folders and files go, nothing else;
+  0 - a folder that held other things and no game, which installers before November 2026 allowed: only what Setup
+      installed goes.
+  Running Setup again over its own install keeps what the first install decided (Options\WholeFolder.txt in the
+  folder, or WholeFolder in the state key from older installs): BF1942.exe is in the folder by then. }
+function FolderKind: Integer;
 var
   Dir, Value: String;
+  Raw: AnsiString;
 begin
   if not FolderChecked then begin
     FolderChecked := True;
     Dir := ExpandConstant('{app}');
-    FolderIsGame := True;
-    if PathSame(RemoveBackslashUnlessRoot(WizardForm.PrevAppDir), Dir) and
+    FolderKindValue := 1;
+    if LoadStringFromFile(AddBackslash(Dir) + 'Options\WholeFolder.txt', Raw) then
+      FolderKindValue := StrToIntDef(Trim(String(Raw)), 0)
+    else if PathSame(RemoveBackslashUnlessRoot(WizardForm.PrevAppDir), Dir) and
        RegQueryStringValue(HKLM32, StateKey, 'WholeFolder', Value) then
-      FolderIsGame := Value = '1'
-    else if DirExists(Dir) and not FileExists(AddBackslash(Dir) + 'BF1942.exe') then
-      FolderIsGame := FolderIsEmpty(Dir);
-    if not FolderIsGame then
-      Log('The install folder has other files and no game: uninstalling removes only what Setup installed');
+      FolderKindValue := StrToIntDef(Value, 0)
+    else if not FileExists(AddBackslash(Dir) + 'BF1942.exe') then begin
+      if DirExists(Dir) and not (FolderIsEmpty(Dir) or OnlyKeptPlayerFiles(Dir)) then
+        FolderKindValue := 0
+      else if not (IsGameFolderName(ExtractFileName(Dir)) or PathSame(Dir, ExpandConstant('{#DefaultDir}'))) then
+        FolderKindValue := 2;
+    end;
+    case FolderKindValue of
+      0: Log('The install folder held other files: uninstalling removes only what Setup installed');
+      2: Log('The install folder is not named for the game: uninstalling removes the game''s own files and folders');
+    end;
   end;
-  Result := FolderIsGame;
+  Result := FolderKindValue;
+end;
+
+function FolderIsGameFolder: Boolean;
+begin
+  Result := FolderKind = 1;
+end;
+
+function FolderIsGeneral: Boolean;
+begin
+  Result := FolderKind = 2;
 end;
 
 function WholeFolderValue(Param: String): String;
 begin
-  if FolderIsGameFolder then Result := '1' else Result := '0';
+  Result := IntToStr(FolderKind);
 end;
 
 { Running Setup again with Borderless1942 or the Compatibility Profile unticked turns them off, as BF1942 Options
@@ -1919,6 +1969,8 @@ begin
     RemoveUnselectedExtras;
   end;
   if CurStep = ssPostInstall then begin
+    ForceDirectories(ExpandConstant('{app}\Options'));
+    SaveStringToFile(ExpandConstant('{app}\Options\WholeFolder.txt'), WholeFolderValue(''), False);
     ApplyPlayerName;
     ConfigureDisplayMode;
     { Also when Borderless1942.exe is already there (turned on in BF1942 Options, or by an earlier install):
@@ -1939,6 +1991,216 @@ end;
 procedure InitializeUninstallProgressForm;
 begin
   UninstallProgressForm.Caption := '{#InstallerTitle}';
+end;
+
+var
+  UninstWholeFolder, KeepScreenshots, KeepReplays, KeepSettings: Boolean;
+
+{ Screenshots (ScreenShots: the game's ScreenShot<n> and BF42++'s <yyyy-mm-dd_hh-mm-ss-mmm> names), BF42++ replays
+  (replays\replay_<time>.ndjson) and the game's settings and profiles (Mods\bf1942\Settings) are the player's own,
+  so the uninstaller asks whether to keep each. All are kept unless the player unticks them; a silent uninstall
+  keeps them }
+function ShotsFolder: String;
+begin
+  Result := ExpandConstant('{app}\ScreenShots');
+end;
+
+function ReplaysFolder: String;
+begin
+  Result := ExpandConstant('{app}\replays');
+end;
+
+function SettingsFolder: String;
+begin
+  Result := ExpandConstant('{app}\Mods\bf1942\Settings');
+end;
+
+{ Where kept folders wait while the uninstaller deletes the game: next to the game folder, as a copy first
+  installed by an older Setup still has "delete the whole folder" in its uninstall log }
+function KeptFolder: String;
+begin
+  Result := RemoveBackslashUnlessRoot(ExpandConstant('{app}')) + ' (kept by uninstall)';
+end;
+
+function FolderHasFiles(const Dir: String; const Recurse: Boolean): Boolean;
+var
+  FindRec: TFindRec;
+begin
+  Result := False;
+  if FindFirst(AddBackslash(Dir) + '*', FindRec) then
+    try
+      repeat
+        if (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) = 0 then
+          Result := True
+        else if Recurse and (FindRec.Name <> '.') and (FindRec.Name <> '..') then
+          Result := FolderHasFiles(AddBackslash(Dir) + FindRec.Name, True);
+      until Result or not FindNext(FindRec);
+    finally
+      FindClose(FindRec);
+    end;
+end;
+
+function AddKeepBox(Form: TSetupForm; const Top: Integer; const Caption, NoneCaption: String;
+  const Has: Boolean): TNewCheckBox;
+begin
+  Result := TNewCheckBox.Create(Form);
+  Result.Parent := Form;
+  Result.Left := ScaleX(12);
+  Result.Top := Top;
+  Result.Width := Form.ClientWidth - ScaleX(24);
+  Result.Height := ScaleY(20);
+  Result.Checked := True;
+  Result.Enabled := Has;
+  if Has then Result.Caption := Caption else Result.Caption := NoneCaption;
+end;
+
+procedure AskKeepPlayerFiles;
+var
+  Form: TSetupForm;
+  Info: TNewStaticText;
+  ShotsBox, ReplaysBox, SettingsBox: TNewCheckBox;
+  OKButton: TNewButton;
+  HasShots, HasReplays, HasSettings: Boolean;
+begin
+  KeepScreenshots := True;
+  KeepReplays := True;
+  KeepSettings := True;
+  HasShots := FolderHasFiles(ShotsFolder, False);
+  HasReplays := FolderHasFiles(ReplaysFolder, False);
+  HasSettings := FolderHasFiles(SettingsFolder, True);
+  if UninstallSilent or not (HasShots or HasReplays or HasSettings) then Exit;
+  Form := CreateCustomForm(ScaleX(400), ScaleY(178), False, True);
+  try
+    Form.Caption := '{#InstallerTitle}';
+    Info := TNewStaticText.Create(Form);
+    Info.Parent := Form;
+    Info.Left := ScaleX(12);
+    Info.Top := ScaleY(12);
+    Info.Width := Form.ClientWidth - ScaleX(24);
+    Info.AutoSize := False;
+    Info.WordWrap := True;
+    Info.Height := ScaleY(32);
+    Info.Caption := 'Your screenshots, replays and game settings are in the game folder. Untick what you want ' +
+      'deleted with the game.';
+
+    ShotsBox := AddKeepBox(Form, Info.Top + Info.Height + ScaleY(8),
+      '&Keep my screenshots (ScreenShots folder)', 'Keep my screenshots - there are none', HasShots);
+    ReplaysBox := AddKeepBox(Form, ShotsBox.Top + ShotsBox.Height + ScaleY(6),
+      'Keep my &replays (replays folder)', 'Keep my replays - there are none', HasReplays);
+    SettingsBox := AddKeepBox(Form, ReplaysBox.Top + ReplaysBox.Height + ScaleY(6),
+      'Keep my &settings and profiles (Mods\bf1942\Settings folder)', 'Keep my settings - there are none',
+      HasSettings);
+
+    OKButton := TNewButton.Create(Form);
+    OKButton.Parent := Form;
+    OKButton.Caption := 'OK';
+    OKButton.Width := Form.CalculateButtonWidth([OKButton.Caption]);
+    OKButton.Height := ScaleY(23);
+    OKButton.Left := Form.ClientWidth - OKButton.Width - ScaleX(12);
+    OKButton.Top := Form.ClientHeight - OKButton.Height - ScaleY(12);
+    OKButton.ModalResult := mrOk;
+    OKButton.Default := True;
+    OKButton.Cancel := True;
+    Form.ActiveControl := OKButton;
+
+    Form.ShowModal;
+    KeepScreenshots := ShotsBox.Checked or not HasShots;
+    KeepReplays := ReplaysBox.Checked or not HasReplays;
+    KeepSettings := SettingsBox.Checked or not HasSettings;
+  finally
+    Form.Free;
+  end;
+end;
+
+{ A kept folder is moved out of the game folder before the uninstaller deletes anything (a rename, or a copy when
+  the rename fails) and put back afterwards. If it can't be put back, it stays in KeptFolder rather than being lost }
+procedure SetAside(const Rel: String; const Keep: Boolean);
+var
+  Src, Dest: String;
+begin
+  Src := AddBackslash(ExpandConstant('{app}')) + Rel;
+  if not (Keep and DirExists(Src)) then Exit;
+  Dest := AddBackslash(KeptFolder) + Rel;
+  ForceDirectories(ExtractFileDir(Dest));
+  if not DirExists(Dest) and RenameFile(Src, Dest) then
+    Log('Set aside: ' + Src + ' -> ' + Dest)
+  else begin
+    Log('Could not move ' + Src + ' - copying it to ' + Dest);
+    CopyDir(Src, Dest);
+  end;
+end;
+
+procedure SetKeptFilesAside;
+begin
+  SetAside('ScreenShots', KeepScreenshots);
+  SetAside('replays', KeepReplays);
+  SetAside('Mods\bf1942\Settings', KeepSettings);
+end;
+
+procedure PutBack(const Rel: String);
+var
+  Src, Dest: String;
+begin
+  Src := AddBackslash(KeptFolder) + Rel;
+  if not DirExists(Src) then Exit;
+  Dest := AddBackslash(ExpandConstant('{app}')) + Rel;
+  ForceDirectories(ExtractFileDir(Dest));
+  if not DirExists(Dest) and RenameFile(Src, Dest) then
+    Log('Kept: ' + Dest)
+  else
+    Log('Could not put ' + Dest + ' back - it is in ' + Src);
+end;
+
+procedure PutKeptFilesBack;
+begin
+  if not DirExists(KeptFolder) then Exit;
+  PutBack('ScreenShots');
+  PutBack('replays');
+  PutBack('Mods\bf1942\Settings');
+  RemoveDir(AddBackslash(KeptFolder) + 'Mods\bf1942');
+  RemoveDir(AddBackslash(KeptFolder) + 'Mods');
+  RemoveDir(KeptFolder);
+end;
+
+{ After the uninstaller removed its own entries: a folder named for the game is emptied completely; in a general
+  folder, the game's own screenshot and replay names go when the player didn't keep them. Then the kept folders go
+  back, and the game folder goes when nothing is left in it }
+procedure CleanGameFolder;
+var
+  Dir, Path: String;
+  FindRec: TFindRec;
+begin
+  Dir := ExpandConstant('{app}');
+  Log(Format('Cleaning %s (whole folder: %d, keep screenshots: %d, keep replays: %d, keep settings: %d)', [
+    Dir, Ord(UninstWholeFolder), Ord(KeepScreenshots), Ord(KeepReplays), Ord(KeepSettings)]));
+  if DirExists(Dir) then begin
+    if UninstWholeFolder then begin
+      if FindFirst(AddBackslash(Dir) + '*', FindRec) then
+        try
+          repeat
+            if (FindRec.Name <> '.') and (FindRec.Name <> '..') then begin
+              Path := AddBackslash(Dir) + FindRec.Name;
+              { DelTree also deletes read-only files }
+              DelTree(Path, (FindRec.Attributes and FILE_ATTRIBUTE_DIRECTORY) <> 0, True, True);
+            end;
+          until not FindNext(FindRec);
+        finally
+          FindClose(FindRec);
+        end;
+    end else begin
+      if not KeepScreenshots then begin
+        DelTree(AddBackslash(ShotsFolder) + '????-??-??_??-??-??-???.*', False, True, False);
+        DelTree(AddBackslash(ShotsFolder) + 'ScreenShot*.*', False, True, False);
+        RemoveDir(ShotsFolder);
+      end;
+      if not KeepReplays then begin
+        DelTree(AddBackslash(ReplaysFolder) + 'replay_*.ndjson', False, True, False);
+        RemoveDir(ReplaysFolder);
+      end;
+    end;
+  end;
+  PutKeptFilesBack;
+  RemoveDir(Dir);
 end;
 
 { "Punkbuster for Battlefield 1942": its Uninstal.exe lives in the game folder (deleted with it),
@@ -2083,6 +2345,7 @@ begin
             PBGameInEAKeys('SOFTWARE\Electronic Arts\EA GAMES') or
             PBGameInEAKeys('SOFTWARE\Electronic Arts') or
             PBGameInSubfolders(ExtractFileDir(ExpandConstant('{app}'))) or
+            (not UninstWholeFolder and PBGameInSubfolders(ExpandConstant('{app}'))) or
             PBGameInSubfolders(ExpandConstant('{sd}\EA Games')) or
             PBGameInSubfolders(ExpandConstant('{commonpf32}\EA Games')) or
             PBGameInSubfolders(ExpandConstant('{commonpf32}\Electronic Arts')) or
@@ -2118,11 +2381,18 @@ begin
     Tries := Tries + 1;
   until (not Remaining) or (Tries >= 20);
   RegDeleteKeyIncludingSubkeys(HKLM32, UninstallKey + '\' + PBServicesKey);
+  { pbsvc.exe adds inbound firewall rules (TCP and UDP) for SysWOW64\PnkBstrA.exe and PnkBstrB.exe, which are
+    outside the game folder, so the game folder's firewall clean-up doesn't reach them }
+  if IsWin64 then Sc := ExpandConstant('{sysnative}\WindowsPowerShell\v1.0\powershell.exe')
+  else Sc := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
+  Exec(Sc, '-NoProfile -ExecutionPolicy Bypass -Command "Get-NetFirewallApplicationFilter | Where-Object { $_.Program -match ''\\PnkBstr[AB]\.exe$'' } | Get-NetFirewallRule | Remove-NetFirewallRule"',
+    '', SW_HIDE, ewWaitUntilTerminated, Code);
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   Flag, Cmd, KeyName: String;
+  RawKind: AnsiString;
   Code, Tries: Integer;
 begin
   { The CD key stays: every copy of the game on this PC shares it, and servers know the player by it. Copies
@@ -2132,9 +2402,15 @@ begin
       Log('Restoring the CD key');
       RegWriteStringValue(HKLM32, ErgcKey, '', KeptSerial);
     end;
+    CleanGameFolder;
     Exit;
   end;
   if CurUninstallStep <> usUninstall then Exit;
+  { This copy's own decision (FolderKind), written into its folder: the state key is shared by every copy }
+  UninstWholeFolder := LoadStringFromFile(ExpandConstant('{app}\Options\WholeFolder.txt'), RawKind) and
+    (Trim(String(RawKind)) = '1');
+  AskKeepPlayerFiles;
+  SetKeptFilesAside;
   if not RegQueryStringValue(HKLM32, ErgcKey, '', KeptSerial) then KeptSerial := '';
   { The Compatibility Profile is registered while BF1942.sdb is in the game folder - by Setup or by BF1942 Options,
     so this checks the file rather than the component. Unregister it before the folder is deleted }
